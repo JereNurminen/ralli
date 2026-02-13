@@ -1,1 +1,37 @@
+# Unity generated
+Ralli/Library/
+Ralli/Temp/
+Ralli/Obj/
+Ralli/Build/
+Ralli/Builds/
+Ralli/Logs/
+Ralli/UserSettings/
+Ralli/MemoryCaptures/
+Ralli/Recordings/
+
+# Asset meta files (keep these in git, but ignore generated caches)
+Ralli/Assets/AssetStoreTools*
+
+# IDE
+.vs/
+.vscode/
+*.csproj
+*.sln
+*.suo
+*.user
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+.idea/
+
+# OS
 .DS_Store
+Thumbs.db
+
+# Crash reports
+Ralli/sysinfo.txt
+crashlytics-build.properties
