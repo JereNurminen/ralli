@@ -1,0 +1,59 @@
+# Entry Spec
+
+- `entry_id`: `2026-02-13-480a95f-driveable-car-vertical-slice`
+- `timestamp_utc`: `2026-02-13T16:18:25Z`
+- `commit`:
+  - `hash`: `480a95f2a2e33f3de518a6dbd57b2aac73dcac85`
+  - `short`: `480a95f`
+  - `title`: `Add car with very basic physics`
+- `phase`: `PhaseA`
+- `scope`:
+  - `vehicle.physics.raycast_suspension`
+  - `vehicle.input.keyboard_gamepad`
+  - `vehicle.stability_assists`
+  - `camera.follow`
+  - `debug.overlay`
+  - `vehicle.visual_wheels`
+- `changes`:
+  - `Ralli/Assets/Scripts/Vehicle/CarController.cs`: added 4-wheel raycast suspension, spring-damper force, slip-based tire force, friction clamp, anti-roll, speed-based steer reduction, wheel visual state API.
+  - `Ralli/Assets/Scripts/Vehicle/CarInputReader.cs`: added throttle/brake/steer/handbrake input mapping for keyboard + gamepad.
+  - `Ralli/Assets/Scripts/Vehicle/CarHandlingConfig.cs`: added ScriptableObject handling params for steering, suspension, grip, drivetrain, stability assists.
+  - `Ralli/Assets/Scripts/Core/FollowCamera.cs`: added yaw-follow camera with obstacle spherecast and minimum ground-clearance clamp.
+  - `Ralli/Assets/Scripts/Core/Debug/IDebugInfoProvider.cs`: added debug provider interface contract.
+  - `Ralli/Assets/Scripts/Core/Debug/DebugPanelBuilder.cs`: added structured debug text builder.
+  - `Ralli/Assets/Scripts/Core/Debug/DebugOverlay.cs`: added runtime debug overlay with provider scan/sort/refresh.
+  - `Ralli/Assets/Scripts/Core/Debug/DebugOverlayBootstrap.cs`: added automatic overlay bootstrap at scene load.
+  - `Ralli/Assets/Scripts/Vehicle/Debug/VehicleDebugInfoProvider.cs`: added vehicle telemetry provider.
+  - `Ralli/Assets/Scripts/Vehicle/CarWheelVisuals.cs`: added visual-only wheel mesh generation and animation from raycast state.
+  - `Ralli/Assets/Scenes/SampleScene.unity`: added drivable car setup, debug provider component, visual wheel component.
+- `parameters`:
+  - `car.mass_kg`: `1250`
+  - `handling.maxSteerAngle_deg`: `28`
+  - `handling.springStrength_Npm`: `32000`
+  - `handling.damperStrength_NsPm`: `3800`
+  - `handling.tireFriction_mu`: `1.2`
+  - `handling.rearDriveBias`: `1.0`
+  - `handling.centerOfMassYOffset_m`: `-0.6`
+  - `handling.antiRollStiffness`: `12000`
+  - `handling.topSpeedForSteerReduction_mps`: `35`
+  - `camera.offset_m`: `(0, 2.6, -5.4)`
+  - `debug.toggle_key`: `F3`
+- `scene_changes`:
+  - `SampleScene`: root objects include `Ground`, `Car`, `Main Camera`.
+  - `Car`: components include `Rigidbody`, `CarInputReader`, `CarController`, `VehicleDebugInfoProvider`, `CarWheelVisuals`.
+  - `Car`: child anchors include `FrontLeft`, `FrontRight`, `RearLeft`, `RearRight`.
+  - `Car`: visual root includes `WheelVisuals/WheelVisual_FL|FR|RL|RR`.
+- `validation`:
+  - `unity.refresh_compile`: `pass`
+  - `unity.console_errors`: `none`
+  - `editmode_tests`: `job_succeeded` (0 discovered tests)
+- `known_issues`:
+  - `handling_quality`: `functional_only; not yet tuned for target fun/drift behavior`
+- `next`:
+  - `implement_rear_lsd_power_coast_lock`
+  - `implement_awd_torque_split_path_with_rear_bias_default`
+  - `refine_combined_friction_ellipse_and_long_lat_force_blend`
+  - `split_handing_config_into_tire_and_drivetrain_assets`
+- `links`:
+  - `docs/10-implementation-plan.md`
+  - `docs/05-vehicle-physics.md`

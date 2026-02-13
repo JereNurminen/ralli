@@ -21,3 +21,8 @@
 ## Implementation Plans
 
 Plans live in [`plans/`](plans/) and are created per feature or phase.
+
+## Dev Log
+
+- Format spec: [`devlog/FORMAT.md`](devlog/FORMAT.md)
+- Entries: [`devlog/entries/`](devlog/entries/)
