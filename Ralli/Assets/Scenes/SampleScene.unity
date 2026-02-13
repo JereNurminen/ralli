@@ -147,7 +147,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 0.35, y: 0.14, z: 0.35}
+  m_LocalScale: {x: 0.7, y: 0.14, z: 0.7}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 697092239}
@@ -576,7 +576,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 0.35, y: 0.14, z: 0.35}
+  m_LocalScale: {x: 0.7, y: 0.14, z: 0.7}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 697092239}
@@ -691,7 +691,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.5555556, y: 0.67471373, z: 0.2777778}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 1213651512}
@@ -791,7 +791,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: 31321ba15b8f8eb4c954353edc038b1d, type: 2}
+  - {fileID: 2100000, guid: 8823ccddf7c504a63b70f3a850a66d5d, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -886,7 +886,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 0.35, y: 0.14, z: 0.35}
+  m_LocalScale: {x: 0.7, y: 0.14, z: 0.7}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 697092239}
@@ -1003,7 +1003,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 0.35, y: 0.14, z: 0.35}
+  m_LocalScale: {x: 0.7, y: 0.14, z: 0.7}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 697092239}
@@ -1097,12 +1097,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f3f8fbd44ea7e47e1afd4a836e8f78d4, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  handling: {fileID: 0}
+  handling: {fileID: 11400000, guid: 97ab18c147842493784200e7ac242be8, type: 2}
   frontLeft:
     name: FrontLeft
     axle: 0
     anchor: {fileID: 1274618080}
-    steerAngle: 0
     grounded: 0
     springLength: 0
     springVelocity: 0
@@ -1111,7 +1110,6 @@ MonoBehaviour:
     name: FrontRight
     axle: 0
     anchor: {fileID: 326776996}
-    steerAngle: 0
     grounded: 0
     springLength: 0
     springVelocity: 0
@@ -1120,7 +1118,6 @@ MonoBehaviour:
     name: RearLeft
     axle: 1
     anchor: {fileID: 344891949}
-    steerAngle: 0
     grounded: 0
     springLength: 0
     springVelocity: 0
@@ -1129,7 +1126,6 @@ MonoBehaviour:
     name: RearRight
     axle: 1
     anchor: {fileID: 632974770}
-    steerAngle: 0
     grounded: 0
     springLength: 0
     springVelocity: 0
@@ -1199,7 +1195,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: 31321ba15b8f8eb4c954353edc038b1d, type: 2}
+  - {fileID: 2100000, guid: e9c4e5db943b249dcbad24e753b0237c, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -1294,6 +1290,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d40e60ee26ecf48fb8cdf5d91e3dd0c7, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  matchPhysicsWheelRadius: 1
+  visualWheelDiameter: 0.9
+  visualRadiusMultiplier: 1
   wheelWidth: 0.28
   wheelMaterial: {fileID: 0}
   createVisualsInEditMode: 1
