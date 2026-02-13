@@ -22,6 +22,10 @@ public class CarHandlingConfig : ScriptableObject
     public float springStrength = 32000f;
     [Tooltip("Suspension damping. Higher = less bounce, slower weight transfer.")]
     public float damperStrength = 3800f;
+    [Tooltip("Clamp for suspension compression speed used by damper (m/s).")]
+    public float maxSuspensionVelocity = 7f;
+    [Tooltip("Maximum suspension force as multiplier of static per-wheel load.")]
+    public float maxSuspensionLoadFactor = 2.7f;
     [Tooltip("Force resisting body roll between left/right wheels on each axle.")]
     public float antiRollStiffness = 9000f;
 
@@ -66,4 +70,10 @@ public class CarHandlingConfig : ScriptableObject
     public float straighteningLateralDamping = 3.5f;
     [Tooltip("How strongly no-input assist damps yaw rotation.")]
     public float straighteningYawDamping = 4.5f;
+    [Tooltip("Steering authority kept when both front wheels are airborne.")]
+    [Range(0f, 1f)] public float steerWhenFrontAirborne = 0.15f;
+    [Tooltip("Rear drive force multiplier when both front wheels are airborne.")]
+    [Range(0f, 1f)] public float rearDriveWhenFrontAirborne = 0.5f;
+    [Tooltip("Rear lateral grip multiplier when both front wheels are airborne.")]
+    [Range(0f, 1f)] public float rearGripWhenFrontAirborne = 0.7f;
 }

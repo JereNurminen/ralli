@@ -1,0 +1,74 @@
+# Entry Spec
+
+- `entry_id`: `2026-02-13-f8077ec-road-stream-smoothing-and-vehicle-contact-stability`
+- `timestamp_utc`: `2026-02-13T20:18:03Z`
+- `commit.hash`: `f8077ec0980126905fa79a5e59963ef99175991c`
+- `commit.short`: `f8077ec`
+- `commit.title`: `Add configurable car`
+- `phase`: `PhaseA`
+- `scope`:
+  - `road.generation.streamed_chunks`
+  - `road.mesh.extruded_visual_top_only_collider`
+  - `road.banking.smoothing_and_deadzone`
+  - `road.debug.gizmos_and_smoothness_metrics`
+  - `vehicle.suspension.force_clamp`
+  - `vehicle.airborne_front_axle_control`
+  - `vehicle.handbrake_bias_config`
+- `changes`:
+  - `Ralli/Assets/Scripts/Road/RoadGenerationConfig.cs`: added ScriptableObject config for deterministic chunked road generation, banking response/deadzone/rate limits, and debug diagnostics controls.
+  - `Ralli/Assets/Scripts/Road/RoadStreamGenerator.cs`: added runtime chunk streaming around player, deterministic centerline sampling, seam-safe chunk boundaries, and pooled chunk culling.
+  - `Ralli/Assets/Scripts/Road/RoadStreamGenerator.cs`: split road meshes into extruded visual mesh (top/bottom/sides) and top-surface-only collider mesh for smoother wheel raycast contact.
+  - `Ralli/Assets/Scripts/Road/RoadStreamGenerator.cs`: changed frame construction to yaw-based tangent with filtered turn-rate and filtered bank target; added bank deadzone and bank change-rate limiting to keep straights flat and suppress short banking spikes.
+  - `Ralli/Assets/Scripts/Road/RoadStreamGenerator.cs`: added smoothness diagnostics log (`maxStepErr`, `maxTangentDelta`, `maxBankStep`, `maxSeamKink`) and seam-kink warning threshold.
+  - `Ralli/Assets/Scripts/Vehicle/CarHandlingConfig.cs`: added tunables `maxSuspensionVelocity`, `maxSuspensionLoadFactor`, `steerWhenFrontAirborne`, `rearDriveWhenFrontAirborne`, `rearGripWhenFrontAirborne`.
+  - `Ralli/Assets/Scripts/Vehicle/CarController.cs`: clamped suspension velocity and per-wheel spring force to prevent bump impulse spikes; applied suspension force at contact point (`hit.point`).
+  - `Ralli/Assets/Scripts/Vehicle/CarController.cs`: tracked grounded front wheels and reduced steering authority/drive/grip when front axle is airborne to reduce snap-direction events.
+  - `Ralli/Assets/Scripts/Vehicle/CarController.cs`: anti-roll now requires both wheels on axle grounded before applying bar force.
+  - `Ralli/Assets/Scenes/SampleScene.unity`: added `RoadStream` root object with `RoadStreamGenerator` component referencing road config asset and asphalt material.
+  - `Ralli/Assets/Materials/RoadAsphalt.mat`: added URP Lit asphalt material for generated road chunks.
+  - `Ralli/Assets/ScriptableObjects/Road/RoadGeneration_Default.asset`: added default road generation asset used by scene road streamer.
+  - `Ralli/Assets/ScriptableObjects/Vehicle/CarHandling_Default.asset`: retuned suspension/anti-roll/handbrake and populated new airborne/suspension clamp fields.
+- `parameters`:
+  - `road.seed`: `1337`
+  - `road.chunkLength_m`: `140`
+  - `road.samplesPerChunk`: `80`
+  - `road.chunksAhead`: `8`
+  - `road.chunksBehind`: `2`
+  - `road.width_m`: `16`
+  - `road.thickness_m`: `0.35`
+  - `road.curvatureFrequency`: `0.006`
+  - `road.maxTurnRate_deg_per_m`: `0.22`
+  - `road.turnRateResponse`: `0.08`
+  - `road.bankFromCurvature_deg`: `8`
+  - `road.maxBank_deg`: `8`
+  - `road.bankDeadzone_deg_per_m`: `0.08`
+  - `road.bankTargetResponse`: `0.08`
+  - `road.bankChangeRate_deg_per_m`: `1.0`
+  - `road.seamKinkWarning_deg`: `2.5`
+  - `car.springStrength_N_per_m`: `24000`
+  - `car.damperStrength_Ns_per_m`: `5200`
+  - `car.maxSuspensionVelocity_mps`: `5`
+  - `car.maxSuspensionLoadFactor`: `1.8`
+  - `car.antiRollStiffness`: `6200`
+  - `car.handbrakeForce_N`: `18033`
+  - `car.handbrakeRearBias`: `0.813`
+  - `car.steerWhenFrontAirborne`: `0.15`
+  - `car.rearDriveWhenFrontAirborne`: `0.5`
+  - `car.rearGripWhenFrontAirborne`: `0.7`
+- `scene_changes`:
+  - `SampleScene`: added root `RoadStream` transform at origin.
+  - `SampleScene`: `RoadStreamGenerator.config -> RoadGeneration_Default`.
+  - `SampleScene`: `RoadStreamGenerator.roadMaterial -> RoadAsphalt`.
+- `validation`:
+  - `runtime_log`: `[RoadStream] Smoothness | samples=721 | maxStepErr=0.0001m | maxTangentDelta=0.213deg | maxBankStep=0.075deg | maxSeamKink=0.200deg`.
+  - `runtime_behavior`: road seam gaps removed; abrupt short bank spikes not observed after smoothing pass.
+- `known_issues`:
+  - `none_recorded_in_this_entry`
+- `next`:
+  - `add-road-crossfall-and-crown-profile-controls`
+  - `add-lod-or-density-scaling-for-road-mesh-and-collider`
+  - `tune-car-handling-against-road-curvature-envelope`
+- `links`:
+  - `docs/devlog/FORMAT.md`
+  - `docs/10-implementation-plan.md`
+  - `docs/05-vehicle-physics.md`

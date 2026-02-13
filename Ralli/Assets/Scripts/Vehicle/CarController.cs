@@ -51,6 +51,7 @@ public class CarController : MonoBehaviour
     private Wheel[] wheels;
     private float steerAngle;
     private int groundedWheels;
+    private int groundedFrontWheels;
     private float currentSteerFactor = 1f;
 
     public float SpeedMps => rb == null ? 0f : rb.linearVelocity.magnitude;
@@ -105,6 +106,7 @@ public class CarController : MonoBehaviour
         }
 
         groundedWheels = 0;
+        groundedFrontWheels = 0;
         currentSteerFactor = EvaluateSteerFactor();
         float targetSteerAngle = input.Steer * handling.maxSteerAngle * currentSteerFactor;
         steerAngle = Mathf.MoveTowards(
@@ -121,6 +123,11 @@ public class CarController : MonoBehaviour
         SimulateWheel(frontRight);
         SimulateWheel(rearLeft);
         SimulateWheel(rearRight);
+
+        // If front axle is unloaded, reduce steering authority to avoid violent snap when touching down.
+        float frontGroundFactor = Mathf.Clamp01(groundedFrontWheels / 2f);
+        float steerAuthority = Mathf.Lerp(handling.steerWhenFrontAirborne, 1f, frontGroundFactor);
+        steerAngle *= steerAuthority;
 
         ApplyAntiRoll(frontLeft, frontRight);
         ApplyAntiRoll(rearLeft, rearRight);
@@ -166,18 +173,25 @@ public class CarController : MonoBehaviour
 
         wheel.grounded = true;
         groundedWheels++;
+        if (wheel.axle == Axle.Front)
+        {
+            groundedFrontWheels++;
+        }
 
         float wheelTravel = hit.distance - handling.wheelRadius;
         float springLengthNow = Mathf.Clamp(wheelTravel, 0f, handling.suspensionRestLength);
         float compression = handling.suspensionRestLength - springLengthNow;
         float springVelocity = (wheel.springLength - springLengthNow) / Time.fixedDeltaTime;
+        springVelocity = Mathf.Clamp(springVelocity, -handling.maxSuspensionVelocity, handling.maxSuspensionVelocity);
         float springForce = compression * handling.springStrength + springVelocity * handling.damperStrength;
+        float staticWheelLoad = rb.mass * Physics.gravity.magnitude * 0.25f;
+        float maxSpringForce = staticWheelLoad * handling.maxSuspensionLoadFactor;
 
         wheel.springLength = springLengthNow;
         wheel.springVelocity = springVelocity;
-        wheel.springForce = Mathf.Max(0f, springForce);
+        wheel.springForce = Mathf.Clamp(springForce, 0f, maxSpringForce);
 
-        rb.AddForceAtPosition(transform.up * wheel.springForce, rayOrigin, ForceMode.Force);
+        rb.AddForceAtPosition(transform.up * wheel.springForce, hit.point, ForceMode.Force);
 
         Vector3 forward = wheel.axle == Axle.Front
             ? Quaternion.AngleAxis(steerAngle, transform.up) * transform.forward
@@ -197,6 +211,10 @@ public class CarController : MonoBehaviour
         {
             lateralGrip *= handling.rearGripWhileHandbrake;
         }
+        if (wheel.axle == Axle.Rear && groundedFrontWheels == 0)
+        {
+            lateralGrip *= handling.rearGripWhenFrontAirborne;
+        }
 
         float lateralForce = -lateralSpeed * lateralGrip * rb.mass;
 
@@ -204,6 +222,10 @@ public class CarController : MonoBehaviour
         if (wheel.axle == Axle.Rear)
         {
             driveForce = driveInput * handling.maxDriveForce * handling.rearDriveBias * 0.5f;
+            if (groundedFrontWheels == 0)
+            {
+                driveForce *= handling.rearDriveWhenFrontAirborne;
+            }
         }
         else
         {
@@ -233,16 +255,21 @@ public class CarController : MonoBehaviour
             return;
         }
 
+        if (!leftWheel.grounded || !rightWheel.grounded)
+        {
+            return;
+        }
+
         float leftTravel = GetSuspensionTravel01(leftWheel);
         float rightTravel = GetSuspensionTravel01(rightWheel);
         float antiRollForce = (leftTravel - rightTravel) * handling.antiRollStiffness;
 
-        if (leftWheel.grounded && leftWheel.anchor != null)
+        if (leftWheel.anchor != null)
         {
             rb.AddForceAtPosition(-transform.up * antiRollForce, leftWheel.anchor.position, ForceMode.Force);
         }
 
-        if (rightWheel.grounded && rightWheel.anchor != null)
+        if (rightWheel.anchor != null)
         {
             rb.AddForceAtPosition(transform.up * antiRollForce, rightWheel.anchor.position, ForceMode.Force);
         }

@@ -18,18 +18,20 @@ MonoBehaviour:
   highSpeedSteerFactor: 1
   wheelRadius: 0.35
   suspensionRestLength: 0.5
-  springStrength: 32000
-  damperStrength: 3800
-  antiRollStiffness: 9000
+  springStrength: 24000
+  damperStrength: 5200
+  maxSuspensionVelocity: 5
+  maxSuspensionLoadFactor: 1.8
+  antiRollStiffness: 6200
   tireFriction: 1.15
   frontLateralGrip: 10.5
   rearLateralGrip: 7
-  rearGripWhileHandbrake: 0.35
+  rearGripWhileHandbrake: 0.1
   rearDriveBias: 1
   maxDriveForce: 12000
   maxBrakeForce: 14000
-  handbrakeForce: 17000
-  handbrakeRearBias: 1
+  handbrakeForce: 18033
+  handbrakeRearBias: 0.813
   rollingResistance: 260
   aerodynamicDrag: 0.45
   centerOfMassYOffset: -0.6
@@ -38,3 +40,6 @@ MonoBehaviour:
   straighteningSteerThreshold: 0.03
   straighteningLateralDamping: 3.5
   straighteningYawDamping: 4.5
+  steerWhenFrontAirborne: 0.15
+  rearDriveWhenFrontAirborne: 0.5
+  rearGripWhenFrontAirborne: 0.7
