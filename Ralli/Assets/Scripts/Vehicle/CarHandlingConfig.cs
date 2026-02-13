@@ -43,7 +43,7 @@ public class CarHandlingConfig : ScriptableObject
     [Tooltip("Drive torque split to rear axle. 1 = RWD, 0.5 = even AWD.")]
     [Range(0f, 1f)] public float rearDriveBias = 1f;
     [Tooltip("Maximum engine drive force.")]
-    public float maxDriveForce = 12000f;
+    public float maxDriveForce = 7000f;
     [Tooltip("Service brake force when brake input is pressed.")]
     public float maxBrakeForce = 14000f;
     [Tooltip("Total additional brake force applied by handbrake.")]
@@ -53,9 +53,9 @@ public class CarHandlingConfig : ScriptableObject
 
     [Header("Coasting")]
     [Tooltip("Base rolling slowdown when no throttle/brake is applied.")]
-    public float rollingResistance = 260f;
+    public float rollingResistance = 180f;
     [Tooltip("Speed-squared drag. Higher = stronger high-speed deceleration.")]
-    public float aerodynamicDrag = 0.45f;
+    public float aerodynamicDrag = 1.35f;
 
     [Header("Stability")]
     [Tooltip("Rigidbody center-of-mass Y offset. Lower = more stable, less roll.")]

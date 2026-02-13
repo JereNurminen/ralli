@@ -134,7 +134,7 @@ public class CarController : MonoBehaviour
 
         if (groundedWheels > 0)
         {
-            ApplyCoastResistance();
+            ApplyPassiveResistance();
             ApplyAngularDamping();
             ApplyStraighteningAssist();
         }
@@ -285,16 +285,16 @@ public class CarController : MonoBehaviour
         return Mathf.Clamp01(wheel.springLength / handling.suspensionRestLength);
     }
 
-    private void ApplyCoastResistance()
+    private void ApplyPassiveResistance()
     {
-        if (input.Throttle > 0.02f || input.Brake > 0.02f)
+        Vector3 velocity = rb.linearVelocity;
+        float speed = velocity.magnitude;
+        if (speed < 0.001f)
         {
             return;
         }
 
-        Vector3 velocity = rb.linearVelocity;
-        float speed = velocity.magnitude;
-        if (speed < 0.05f)
+        if (speed < 0.05f && input.Throttle <= 0.02f && input.Brake <= 0.02f)
         {
             rb.linearVelocity = Vector3.zero;
             return;
