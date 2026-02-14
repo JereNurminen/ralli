@@ -480,30 +480,40 @@ public class RoadStreamGenerator : MonoBehaviour
 
         float radius = 1f / turnRateRad;
 
-        // Determine which side is the inside of the curve.
-        // Positive turn rate = turning left = right side is inside (positive lateral).
-        // The inside lateral direction has the same sign as the turn rate (in deg).
+        // On a curve with radius R, a point at lateral offset d from the centerline
+        // traces an arc of radius (R - d) on the inside, or (R + d) on the outside.
+        // When (R - d) gets small, consecutive sample strips overlap on the inside.
+        //
+        // Positive turn rate = turning left = inside is at positive lateral (right side).
         float insideSign = Mathf.Sign(turnRateDegPerMeter);
-
-        // Only compress points on the inside that extend beyond the road surface.
-        // lateral is signed: negative = left, positive = right.
-        // insideLateral is how far this point extends toward the inside.
         float insideLateral = lateral * insideSign;
 
         if (insideLateral <= 0f)
-            return lateral; // This point is on the outside — no compression needed.
+            return lateral; // Outside of curve — no issue.
 
-        // Clamp: the point can't go past a fraction of the radius.
-        // Leave a minimum gap so geometry doesn't fully collapse.
-        float maxInside = Mathf.Max(radius * 0.85f, config.roadWidth * 0.5f + config.shoulderWidth);
-        if (insideLateral <= maxInside)
+        // Don't compress the road surface itself (asphalt + shoulder).
+        float safeZone = config.roadWidth * 0.5f + config.shoulderWidth;
+        if (insideLateral <= safeZone)
             return lateral;
 
-        // Smoothly compress from maxInside outward.
-        float excess = insideLateral - maxInside;
-        float compressedExcess = excess / (1f + excess / (radius * 0.1f));
-        float compressedLateral = (maxInside + compressedExcess) * insideSign;
-        return compressedLateral;
+        // Beyond the safe zone, compress toward safeZone based on curvature.
+        // The inner profile must not extend past ~half the radius, because on a
+        // hairpin the returning road occupies the space beyond that.
+        float maxExtent = Mathf.Max(0f, radius * 0.4f - safeZone);
+        float requested = insideLateral - safeZone;
+
+        float compressed;
+        if (maxExtent < 0.1f)
+        {
+            compressed = 0f;
+        }
+        else
+        {
+            // Exponential falloff: asymptotically approaches maxExtent.
+            compressed = maxExtent * (1f - Mathf.Exp(-requested / maxExtent));
+        }
+
+        return (safeZone + compressed) * insideSign;
     }
 
     private void EnsureSamplesUpToIndex(int targetIndex)
