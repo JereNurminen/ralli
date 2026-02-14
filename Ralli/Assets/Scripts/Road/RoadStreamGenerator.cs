@@ -209,7 +209,8 @@ public class RoadStreamGenerator : MonoBehaviour
             for (int j = 0; j < profileCount; j++)
             {
                 ProfilePoint point = profile[j];
-                Vector3 top = sample.position + sample.right * point.lateral - sample.up * point.drop;
+                float adjustedLateral = AdjustLateralForCurvature(point.lateral, sample.turnRateDegPerMeter);
+                Vector3 top = sample.position + sample.right * adjustedLateral - sample.up * point.drop;
                 Vector3 bottom = top - sample.up * thickness;
                 float u = profileCount <= 1 ? 0f : j / (float)(profileCount - 1);
 
@@ -319,7 +320,8 @@ public class RoadStreamGenerator : MonoBehaviour
             for (int j = 0; j < profileCount; j++)
             {
                 ProfilePoint point = profile[j];
-                vertices[rowBase + j] = sample.position + sample.right * point.lateral - sample.up * point.drop;
+                float adjustedLateral = AdjustLateralForCurvature(point.lateral, sample.turnRateDegPerMeter);
+                vertices[rowBase + j] = sample.position + sample.right * adjustedLateral - sample.up * point.drop;
             }
         }
 
@@ -468,6 +470,40 @@ public class RoadStreamGenerator : MonoBehaviour
         }
 
         return normals;
+    }
+
+    private float AdjustLateralForCurvature(float lateral, float turnRateDegPerMeter)
+    {
+        float turnRateRad = Mathf.Abs(turnRateDegPerMeter) * Mathf.Deg2Rad;
+        if (turnRateRad < 0.0001f)
+            return lateral;
+
+        float radius = 1f / turnRateRad;
+
+        // Determine which side is the inside of the curve.
+        // Positive turn rate = turning left = right side is inside (positive lateral).
+        // The inside lateral direction has the same sign as the turn rate (in deg).
+        float insideSign = Mathf.Sign(turnRateDegPerMeter);
+
+        // Only compress points on the inside that extend beyond the road surface.
+        // lateral is signed: negative = left, positive = right.
+        // insideLateral is how far this point extends toward the inside.
+        float insideLateral = lateral * insideSign;
+
+        if (insideLateral <= 0f)
+            return lateral; // This point is on the outside — no compression needed.
+
+        // Clamp: the point can't go past a fraction of the radius.
+        // Leave a minimum gap so geometry doesn't fully collapse.
+        float maxInside = Mathf.Max(radius * 0.85f, config.roadWidth * 0.5f + config.shoulderWidth);
+        if (insideLateral <= maxInside)
+            return lateral;
+
+        // Smoothly compress from maxInside outward.
+        float excess = insideLateral - maxInside;
+        float compressedExcess = excess / (1f + excess / (radius * 0.1f));
+        float compressedLateral = (maxInside + compressedExcess) * insideSign;
+        return compressedLateral;
     }
 
     private void EnsureSamplesUpToIndex(int targetIndex)
