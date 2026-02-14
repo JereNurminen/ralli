@@ -11,7 +11,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: ab9000973f2a84faba23786e57913933, type: 3}
   m_Name: CarHandling_Default
-  m_EditorClassIdentifier: 
+  m_EditorClassIdentifier:
   maxSteerAngle: 30
   steerResponse: 8
   steerFadeSpeed: 45
@@ -27,11 +27,15 @@ MonoBehaviour:
   frontLateralGrip: 10.5
   rearLateralGrip: 7
   rearGripWhileHandbrake: 0.1
+  rearGripWhenSingleRearWheelGrounded: 0.4
+  rearTireForceCapWhenSingleRearWheelGrounded: 0.4
   rearDriveBias: 1
   maxDriveForce: 7000
   maxBrakeForce: 14000
   handbrakeForce: 18033
   handbrakeRearBias: 0.813
+  rearDriveWhenSingleRearWheelGrounded: 0.35
+  rearSpringForceWhenSingleRearWheelGrounded: 0.6
   rollingResistance: 180
   aerodynamicDrag: 1.35
   centerOfMassYOffset: -0.6

@@ -38,6 +38,10 @@ public class CarHandlingConfig : ScriptableObject
     public float rearLateralGrip = 7.0f;
     [Tooltip("Rear grip multiplier while handbrake is held.")]
     [Range(0.1f, 1f)] public float rearGripWhileHandbrake = 0.35f;
+    [Tooltip("Rear lateral grip multiplier when exactly one rear wheel is grounded.")]
+    [Range(0f, 1f)] public float rearGripWhenSingleRearWheelGrounded = 0.4f;
+    [Tooltip("Rear tire force budget multiplier when exactly one rear wheel is grounded.")]
+    [Range(0f, 1f)] public float rearTireForceCapWhenSingleRearWheelGrounded = 0.4f;
 
     [Header("Power + Brakes")]
     [Tooltip("Drive torque split to rear axle. 1 = RWD, 0.5 = even AWD.")]
@@ -50,6 +54,10 @@ public class CarHandlingConfig : ScriptableObject
     public float handbrakeForce = 17000f;
     [Tooltip("Handbrake force split to rear axle. 1 = rear-only, 0.5 = even front/rear.")]
     [Range(0f, 1f)] public float handbrakeRearBias = 1f;
+    [Tooltip("Rear drive force multiplier when exactly one rear wheel is grounded.")]
+    [Range(0f, 1f)] public float rearDriveWhenSingleRearWheelGrounded = 0.35f;
+    [Tooltip("Rear suspension force multiplier when exactly one rear wheel is grounded.")]
+    [Range(0f, 1f)] public float rearSpringForceWhenSingleRearWheelGrounded = 0.6f;
 
     [Header("Coasting")]
     [Tooltip("Base rolling slowdown when no throttle/brake is applied.")]

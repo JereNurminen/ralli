@@ -15,6 +15,21 @@ public class CarController : MonoBehaviour
         public bool Grounded;
     }
 
+    public struct WheelTelemetry
+    {
+        public string Name;
+        public bool Grounded;
+        public float SpringForce;
+        public float LateralForce;
+        public float LongitudinalForce;
+        public float MaxTireForce;
+        public Vector3 AppliedForceWorld;
+        public Vector3 ContactPoint;
+        public Vector3 ContactNormal;
+        public Vector3 Forward;
+        public Vector3 Right;
+    }
+
     private enum Axle
     {
         Front,
@@ -32,6 +47,14 @@ public class CarController : MonoBehaviour
         [HideInInspector] public float springLength;
         [HideInInspector] public float springVelocity;
         [HideInInspector] public float springForce;
+        [HideInInspector] public float lastLateralForce;
+        [HideInInspector] public float lastLongitudinalForce;
+        [HideInInspector] public float lastMaxTireForce;
+        [HideInInspector] public Vector3 lastAppliedForceWorld;
+        [HideInInspector] public Vector3 lastContactPoint;
+        [HideInInspector] public Vector3 lastContactNormal;
+        [HideInInspector] public Vector3 lastForward;
+        [HideInInspector] public Vector3 lastRight;
     }
 
     [Header("Config")]
@@ -119,15 +142,15 @@ public class CarController : MonoBehaviour
             steerAngle = 0f;
         }
 
+        int frontGroundedCountNow = GetFrontGroundedCountNow();
+        float frontGroundFactor = Mathf.Clamp01(frontGroundedCountNow / 2f);
+        float steerAuthority = Mathf.Lerp(handling.steerWhenFrontAirborne, 1f, frontGroundFactor);
+        steerAngle *= steerAuthority;
+
         SimulateWheel(frontLeft);
         SimulateWheel(frontRight);
         SimulateWheel(rearLeft);
         SimulateWheel(rearRight);
-
-        // If front axle is unloaded, reduce steering authority to avoid violent snap when touching down.
-        float frontGroundFactor = Mathf.Clamp01(groundedFrontWheels / 2f);
-        float steerAuthority = Mathf.Lerp(handling.steerWhenFrontAirborne, 1f, frontGroundFactor);
-        steerAngle *= steerAuthority;
 
         ApplyAntiRoll(frontLeft, frontRight);
         ApplyAntiRoll(rearLeft, rearRight);
@@ -168,6 +191,14 @@ public class CarController : MonoBehaviour
             wheel.springForce = 0f;
             wheel.springLength = handling.suspensionRestLength;
             wheel.springVelocity = 0f;
+            wheel.lastLateralForce = 0f;
+            wheel.lastLongitudinalForce = 0f;
+            wheel.lastMaxTireForce = 0f;
+            wheel.lastAppliedForceWorld = Vector3.zero;
+            wheel.lastContactPoint = rayOrigin - transform.up * suspensionDistance;
+            wheel.lastContactNormal = transform.up;
+            wheel.lastForward = transform.forward;
+            wheel.lastRight = transform.right;
             return;
         }
 
@@ -177,6 +208,7 @@ public class CarController : MonoBehaviour
         {
             groundedFrontWheels++;
         }
+        int rearGroundedCount = GetRearGroundedCountNow();
 
         float wheelTravel = hit.distance - handling.wheelRadius;
         float springLengthNow = Mathf.Clamp(wheelTravel, 0f, handling.suspensionRestLength);
@@ -190,6 +222,10 @@ public class CarController : MonoBehaviour
         wheel.springLength = springLengthNow;
         wheel.springVelocity = springVelocity;
         wheel.springForce = Mathf.Clamp(springForce, 0f, maxSpringForce);
+        if (wheel.axle == Axle.Rear && rearGroundedCount == 1)
+        {
+            wheel.springForce *= handling.rearSpringForceWhenSingleRearWheelGrounded;
+        }
 
         rb.AddForceAtPosition(transform.up * wheel.springForce, hit.point, ForceMode.Force);
 
@@ -205,11 +241,14 @@ public class CarController : MonoBehaviour
         float driveInput = input.Throttle;
         float brakeInput = input.Brake;
         float handbrakeInput = input.Handbrake ? 1f : 0f;
-
         float lateralGrip = wheel.axle == Axle.Front ? handling.frontLateralGrip : handling.rearLateralGrip;
         if (wheel.axle == Axle.Rear && handbrakeInput > 0f)
         {
             lateralGrip *= handling.rearGripWhileHandbrake;
+        }
+        if (wheel.axle == Axle.Rear && rearGroundedCount == 1)
+        {
+            lateralGrip *= handling.rearGripWhenSingleRearWheelGrounded;
         }
         if (wheel.axle == Axle.Rear && groundedFrontWheels == 0)
         {
@@ -222,6 +261,10 @@ public class CarController : MonoBehaviour
         if (wheel.axle == Axle.Rear)
         {
             driveForce = driveInput * handling.maxDriveForce * handling.rearDriveBias * 0.5f;
+            if (rearGroundedCount == 1)
+            {
+                driveForce *= handling.rearDriveWhenSingleRearWheelGrounded;
+            }
             if (groundedFrontWheels == 0)
             {
                 driveForce *= handling.rearDriveWhenFrontAirborne;
@@ -239,13 +282,30 @@ public class CarController : MonoBehaviour
 
         Vector2 tireForce = new Vector2(lateralForce, longitudinalForce);
         float maxTireForce = wheel.springForce * handling.tireFriction;
-        if (maxTireForce > 0f && tireForce.magnitude > maxTireForce)
+        if (wheel.axle == Axle.Rear && rearGroundedCount == 1)
+        {
+            maxTireForce *= handling.rearTireForceCapWhenSingleRearWheelGrounded;
+        }
+        if (maxTireForce <= 0f)
+        {
+            tireForce = Vector2.zero;
+        }
+        else if (tireForce.magnitude > maxTireForce)
         {
             tireForce = tireForce.normalized * maxTireForce;
         }
 
         Vector3 finalForce = right * tireForce.x + forward * tireForce.y;
         rb.AddForceAtPosition(finalForce, hit.point, ForceMode.Force);
+
+        wheel.lastLateralForce = tireForce.x;
+        wheel.lastLongitudinalForce = tireForce.y;
+        wheel.lastMaxTireForce = maxTireForce;
+        wheel.lastAppliedForceWorld = finalForce;
+        wheel.lastContactPoint = hit.point;
+        wheel.lastContactNormal = hit.normal;
+        wheel.lastForward = forward;
+        wheel.lastRight = right;
     }
 
     private void ApplyAntiRoll(Wheel leftWheel, Wheel rightWheel)
@@ -434,5 +494,82 @@ public class CarController : MonoBehaviour
         };
 
         return true;
+    }
+
+    public bool TryGetWheelTelemetry(int wheelIndex, out WheelTelemetry telemetry)
+    {
+        telemetry = default;
+        if (wheels == null || wheelIndex < 0 || wheelIndex >= wheels.Length)
+        {
+            return false;
+        }
+
+        Wheel wheel = wheels[wheelIndex];
+        telemetry = new WheelTelemetry
+        {
+            Name = wheel.name,
+            Grounded = wheel.grounded,
+            SpringForce = wheel.springForce,
+            LateralForce = wheel.lastLateralForce,
+            LongitudinalForce = wheel.lastLongitudinalForce,
+            MaxTireForce = wheel.lastMaxTireForce,
+            AppliedForceWorld = wheel.lastAppliedForceWorld,
+            ContactPoint = wheel.lastContactPoint,
+            ContactNormal = wheel.lastContactNormal,
+            Forward = wheel.lastForward,
+            Right = wheel.lastRight
+        };
+
+        return true;
+    }
+
+    private int GetRearGroundedCountNow()
+    {
+        float suspensionDistance = handling.suspensionRestLength + handling.wheelRadius;
+        int count = 0;
+        if (IsAnchorGrounded(rearLeft.anchor, suspensionDistance))
+        {
+            count++;
+        }
+
+        if (IsAnchorGrounded(rearRight.anchor, suspensionDistance))
+        {
+            count++;
+        }
+
+        return count;
+    }
+
+    private int GetFrontGroundedCountNow()
+    {
+        float suspensionDistance = handling.suspensionRestLength + handling.wheelRadius;
+        int count = 0;
+        if (IsAnchorGrounded(frontLeft.anchor, suspensionDistance))
+        {
+            count++;
+        }
+
+        if (IsAnchorGrounded(frontRight.anchor, suspensionDistance))
+        {
+            count++;
+        }
+
+        return count;
+    }
+
+    private bool IsAnchorGrounded(Transform anchor, float suspensionDistance)
+    {
+        if (anchor == null)
+        {
+            return false;
+        }
+
+        return Physics.Raycast(
+            anchor.position,
+            -transform.up,
+            suspensionDistance,
+            groundMask,
+            QueryTriggerInteraction.Ignore
+        );
     }
 }
