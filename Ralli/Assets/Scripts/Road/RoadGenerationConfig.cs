@@ -34,6 +34,12 @@ public class RoadGenerationConfig : ScriptableObject
     public float ditchWidth = 2.0f;
     [Tooltip("Ditch depth below shoulder level in meters.")]
     public float ditchDepth = 0.55f;
+    [Tooltip("Flat bottom width of the ditch in meters (0 = V-shaped).")]
+    public float ditchBottomFlatWidth = 0f;
+    [Tooltip("Forest floor strip width on each side beyond the ditch in meters.")]
+    public float forestFloorWidth = 10f;
+    [Tooltip("Forest floor vertical offset from road centerline Y in meters (negative = lower).")]
+    public float forestFloorYOffset = -0.05f;
     [Tooltip("Max heading change rate in deg/m.")]
     public float maxTurnRateDegPerMeter = 0.22f;
     [Tooltip("How quickly turn rate moves toward piece target (0..1 per sample).")]

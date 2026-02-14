@@ -353,11 +353,15 @@ public class RoadStreamGenerator : MonoBehaviour
         float shoulderDrop = Mathf.Max(0f, config.shoulderDrop);
         float ditchWidth = Mathf.Max(0f, config.ditchWidth);
         float ditchDepth = Mathf.Max(0f, config.ditchDepth);
+        float ditchBottomFlatWidth = Mathf.Clamp(config.ditchBottomFlatWidth, 0f, ditchWidth);
+        float forestFloorWidth = Mathf.Max(0f, config.forestFloorWidth);
+        float forestFloorDrop = -config.forestFloorYOffset;
 
         Color asphalt = new Color(1f, 0f, 0f, 0f);
         Color dirt = new Color(0f, 1f, 0f, 0f);
+        Color forest = new Color(0f, 1f, 1f, 0f);
 
-        if (shoulderWidth <= 0.001f && ditchWidth <= 0.001f)
+        if (shoulderWidth <= 0.001f && ditchWidth <= 0.001f && forestFloorWidth <= 0.001f)
         {
             return new[]
             {
@@ -367,20 +371,70 @@ public class RoadStreamGenerator : MonoBehaviour
         }
 
         float shoulderOuter = halfRoadWidth + shoulderWidth;
-        float ditchBottom = shoulderOuter + (ditchWidth * 0.5f);
         float ditchOuter = shoulderOuter + ditchWidth;
+        float forestOuter = ditchOuter + forestFloorWidth;
+        float ditchSideWidth = Mathf.Max(0f, (ditchWidth - ditchBottomFlatWidth) * 0.5f);
+        float ditchBottomInner = shoulderOuter + ditchSideWidth;
+        float ditchBottomOuter = ditchOuter - ditchSideWidth;
+        float ditchBottomDrop = Mathf.Max(shoulderDrop, forestFloorDrop) + ditchDepth;
 
-        return new[]
+        var points = new List<ProfilePoint>(12);
+
+        void AddPoint(float lateral, float drop, Color color)
         {
-            new ProfilePoint { lateral = -ditchOuter, drop = shoulderDrop, color = dirt },
-            new ProfilePoint { lateral = -ditchBottom, drop = shoulderDrop + ditchDepth, color = dirt },
-            new ProfilePoint { lateral = -shoulderOuter, drop = shoulderDrop, color = dirt },
-            new ProfilePoint { lateral = -halfRoadWidth, drop = 0f, color = asphalt },
-            new ProfilePoint { lateral = halfRoadWidth, drop = 0f, color = asphalt },
-            new ProfilePoint { lateral = shoulderOuter, drop = shoulderDrop, color = dirt },
-            new ProfilePoint { lateral = ditchBottom, drop = shoulderDrop + ditchDepth, color = dirt },
-            new ProfilePoint { lateral = ditchOuter, drop = shoulderDrop, color = dirt }
-        };
+            if (points.Count > 0 && Mathf.Abs(points[points.Count - 1].lateral - lateral) < 0.0001f)
+            {
+                points[points.Count - 1] = new ProfilePoint { lateral = lateral, drop = drop, color = color };
+                return;
+            }
+
+            points.Add(new ProfilePoint { lateral = lateral, drop = drop, color = color });
+        }
+
+        if (forestFloorWidth > 0.001f)
+        {
+            AddPoint(-forestOuter, forestFloorDrop, forest);
+        }
+
+        if (ditchWidth > 0.001f)
+        {
+            AddPoint(-ditchOuter, forestFloorDrop, dirt);
+            AddPoint(-ditchBottomOuter, ditchBottomDrop, dirt);
+            if (ditchBottomFlatWidth > 0.001f)
+            {
+                AddPoint(-ditchBottomInner, ditchBottomDrop, dirt);
+            }
+        }
+
+        if (shoulderWidth > 0.001f || ditchWidth > 0.001f || forestFloorWidth > 0.001f)
+        {
+            AddPoint(-shoulderOuter, shoulderDrop, dirt);
+        }
+
+        AddPoint(-halfRoadWidth, 0f, asphalt);
+        AddPoint(halfRoadWidth, 0f, asphalt);
+
+        if (shoulderWidth > 0.001f || ditchWidth > 0.001f || forestFloorWidth > 0.001f)
+        {
+            AddPoint(shoulderOuter, shoulderDrop, dirt);
+        }
+
+        if (ditchWidth > 0.001f)
+        {
+            if (ditchBottomFlatWidth > 0.001f)
+            {
+                AddPoint(ditchBottomInner, ditchBottomDrop, dirt);
+            }
+            AddPoint(ditchBottomOuter, ditchBottomDrop, dirt);
+            AddPoint(ditchOuter, forestFloorDrop, dirt);
+        }
+
+        if (forestFloorWidth > 0.001f)
+        {
+            AddPoint(forestOuter, forestFloorDrop, forest);
+        }
+
+        return points.ToArray();
     }
 
     private Vector2[] BuildProfileNormals(ProfilePoint[] profile)

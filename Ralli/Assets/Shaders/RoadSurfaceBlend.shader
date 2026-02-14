@@ -4,6 +4,7 @@ Shader "Ralli/RoadSurfaceBlend"
     {
         _AsphaltColor("Asphalt Color", Color) = (0.13, 0.13, 0.14, 1)
         _ShoulderColor("Shoulder Color", Color) = (0.34, 0.28, 0.22, 1)
+        _ForestColor("Forest Floor Color", Color) = (0.20, 0.34, 0.18, 1)
         _MinLighting("Min Lighting", Range(0, 1)) = 0.35
     }
 
@@ -45,6 +46,7 @@ Shader "Ralli/RoadSurfaceBlend"
             CBUFFER_START(UnityPerMaterial)
             float4 _AsphaltColor;
             float4 _ShoulderColor;
+            float4 _ForestColor;
             float _MinLighting;
             CBUFFER_END
 
@@ -60,12 +62,16 @@ Shader "Ralli/RoadSurfaceBlend"
             half4 Frag(Varyings input) : SV_Target
             {
                 float asphaltWeight = saturate(input.color.r);
-                float shoulderWeight = saturate(input.color.g);
-                float weightSum = max(0.0001, asphaltWeight + shoulderWeight);
+                float dirtWeight = saturate(input.color.g);
+                float forestMask = saturate(input.color.b);
+                float forestWeight = dirtWeight * forestMask;
+                float shoulderWeight = dirtWeight * (1.0 - forestMask);
+                float weightSum = max(0.0001, asphaltWeight + shoulderWeight + forestWeight);
                 asphaltWeight /= weightSum;
                 shoulderWeight /= weightSum;
+                forestWeight /= weightSum;
 
-                half4 baseColor = _AsphaltColor * asphaltWeight + _ShoulderColor * shoulderWeight;
+                half4 baseColor = _AsphaltColor * asphaltWeight + _ShoulderColor * shoulderWeight + _ForestColor * forestWeight;
                 float3 normalWS = normalize(input.normalWS);
                 Light mainLight = GetMainLight();
                 float nl = saturate(dot(normalWS, mainLight.direction));

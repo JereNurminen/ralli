@@ -11,7 +11,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 8cd6be16483d2497d843fc0a519aa643, type: 3}
   m_Name: RoadGeneration_Default
-  m_EditorClassIdentifier:
+  m_EditorClassIdentifier: 
   seed: 1337
   chunkLength: 140
   minChunkLength: 100
@@ -23,10 +23,13 @@ MonoBehaviour:
   roadThickness: 0.35
   shoulderWidth: 1.2
   shoulderDrop: 0.05
-  ditchWidth: 2
-  ditchDepth: 0.55
-  maxTurnRateDegPerMeter: 0.3
-  turnRateResponse: 0.08
+  ditchWidth: 4
+  ditchDepth: 1.25
+  ditchBottomFlatWidth: 1
+  forestFloorWidth: 100
+  forestFloorYOffset: -0.5
+  maxTurnRateDegPerMeter: 1
+  turnRateResponse: 0.2
   enableHills: 1
   smallBumpAmplitude: 0.9
   smallBumpWavelength: 42

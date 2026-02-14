@@ -852,7 +852,7 @@ Transform:
   m_GameObject: {fileID: 1037569012}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalPosition: {x: 0, y: -16.43, z: 0}
   m_LocalScale: {x: 1000, y: 1, z: 1000}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -986,7 +986,7 @@ Transform:
   m_GameObject: {fileID: 1239733280}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalPosition: {x: 0, y: 0.25, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -1154,6 +1154,14 @@ MonoBehaviour:
     springLength: 0
     springVelocity: 0
     springForce: 0
+    lastLateralForce: 0
+    lastLongitudinalForce: 0
+    lastMaxTireForce: 0
+    lastAppliedForceWorld: {x: 0, y: 0, z: 0}
+    lastContactPoint: {x: 0, y: 0, z: 0}
+    lastContactNormal: {x: 0, y: 0, z: 0}
+    lastForward: {x: 0, y: 0, z: 0}
+    lastRight: {x: 0, y: 0, z: 0}
   frontRight:
     name: FrontRight
     axle: 0
@@ -1162,6 +1170,14 @@ MonoBehaviour:
     springLength: 0
     springVelocity: 0
     springForce: 0
+    lastLateralForce: 0
+    lastLongitudinalForce: 0
+    lastMaxTireForce: 0
+    lastAppliedForceWorld: {x: 0, y: 0, z: 0}
+    lastContactPoint: {x: 0, y: 0, z: 0}
+    lastContactNormal: {x: 0, y: 0, z: 0}
+    lastForward: {x: 0, y: 0, z: 0}
+    lastRight: {x: 0, y: 0, z: 0}
   rearLeft:
     name: RearLeft
     axle: 1
@@ -1170,6 +1186,14 @@ MonoBehaviour:
     springLength: 0
     springVelocity: 0
     springForce: 0
+    lastLateralForce: 0
+    lastLongitudinalForce: 0
+    lastMaxTireForce: 0
+    lastAppliedForceWorld: {x: 0, y: 0, z: 0}
+    lastContactPoint: {x: 0, y: 0, z: 0}
+    lastContactNormal: {x: 0, y: 0, z: 0}
+    lastForward: {x: 0, y: 0, z: 0}
+    lastRight: {x: 0, y: 0, z: 0}
   rearRight:
     name: RearRight
     axle: 1
@@ -1178,6 +1202,14 @@ MonoBehaviour:
     springLength: 0
     springVelocity: 0
     springForce: 0
+    lastLateralForce: 0
+    lastLongitudinalForce: 0
+    lastMaxTireForce: 0
+    lastAppliedForceWorld: {x: 0, y: 0, z: 0}
+    lastContactPoint: {x: 0, y: 0, z: 0}
+    lastContactNormal: {x: 0, y: 0, z: 0}
+    lastForward: {x: 0, y: 0, z: 0}
+    lastRight: {x: 0, y: 0, z: 0}
   groundMask:
     serializedVersion: 2
     m_Bits: 4294967295
@@ -1303,7 +1335,7 @@ Transform:
   m_GameObject: {fileID: 1993720258}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 1.2911, z: 0}
+  m_LocalPosition: {x: 0, y: 2.22, z: 5}
   m_LocalScale: {x: 1.8, y: 1.48211, z: 3.6}
   m_ConstrainProportionsScale: 0
   m_Children:
