@@ -83,6 +83,18 @@ public class RoadGenerationConfig : ScriptableObject
     [Tooltip("Chance to flip curve direction vs previous curve.")]
     [Range(0f, 1f)] public float oppositeCurveChance = 0.65f;
 
+    [Header("Designed Road Pieces")]
+    [Tooltip("Pool of hand-authored road pieces to inject. Leave null to disable.")]
+    public DesignedRoadPiecePool designedPiecePool;
+    [Tooltip("Minimum procedural distance between designed pieces (meters).")]
+    public float minProceduralBetweenDesigned = 200f;
+    [Tooltip("Maximum procedural distance between designed pieces (meters).")]
+    public float maxProceduralBetweenDesigned = 600f;
+    [Tooltip("How strongly to prefer pieces that correct heading drift (0 = random, 1 = always correct).")]
+    [Range(0f, 1f)] public float headingCorrectionStrength = 0.4f;
+    [Tooltip("Target average heading in degrees (0 = north/forward).")]
+    public float targetBearing = 0f;
+
     [Header("Banking")]
     [Tooltip("How strongly curvature affects banking.")]
     public float bankFromCurvature = 8f;

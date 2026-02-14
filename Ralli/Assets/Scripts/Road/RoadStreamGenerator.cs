@@ -54,12 +54,20 @@ public class RoadStreamGenerator : MonoBehaviour
     private readonly Dictionary<int, ChunkData> chunks = new Dictionary<int, ChunkData>();
     private readonly List<ChunkLayout> chunkLayouts = new List<ChunkLayout>(256);
 
+    private enum PieceType { Straight, Curve, Designed }
+
     private float sampleDistance;
     private int pieceIndex = -1;
     private float pieceStartS;
     private float pieceEndS;
     private float pieceTurnRateDegPerMeter;
     private float previousCurveTurnRateDegPerMeter;
+
+    private PieceType currentPieceType = PieceType.Straight;
+    private DesignedRoadPiece currentDesignedPiece;
+    private bool currentDesignedPieceMirrored;
+    private float proceduralDistanceSinceLastDesigned;
+    private float cumulativeYawDeg;
 
     private void Start()
     {
@@ -583,11 +591,30 @@ public class RoadStreamGenerator : MonoBehaviour
             AdvancePiece();
         }
 
+        if (currentPieceType == PieceType.Designed && currentDesignedPiece != null)
+        {
+            float pieceLen = pieceEndS - pieceStartS;
+            float t = pieceLen > 0f ? Mathf.Clamp01((s - pieceStartS) / pieceLen) : 0f;
+            float rate = currentDesignedPiece.turnRateCurve.Evaluate(t);
+            if (currentDesignedPieceMirrored) rate = -rate;
+            return rate;
+        }
+
         return pieceTurnRateDegPerMeter;
     }
 
     private float GetTargetElevation(float s)
     {
+        if (currentPieceType == PieceType.Designed &&
+            currentDesignedPiece != null &&
+            currentDesignedPiece.hasElevation &&
+            s >= pieceStartS && s < pieceEndS)
+        {
+            float pieceLen = pieceEndS - pieceStartS;
+            float t = pieceLen > 0f ? Mathf.Clamp01((s - pieceStartS) / pieceLen) : 0f;
+            return transform.position.y + currentDesignedPiece.elevationCurve.Evaluate(t);
+        }
+
         if (!config.enableHills)
         {
             return transform.position.y;
@@ -622,6 +649,11 @@ public class RoadStreamGenerator : MonoBehaviour
         pieceEndS = 0f;
         pieceTurnRateDegPerMeter = 0f;
         previousCurveTurnRateDegPerMeter = 0f;
+        currentPieceType = PieceType.Straight;
+        currentDesignedPiece = null;
+        currentDesignedPieceMirrored = false;
+        proceduralDistanceSinceLastDesigned = 0f;
+        cumulativeYawDeg = 0f;
     }
 
     private void AdvancePiece()
@@ -630,6 +662,41 @@ public class RoadStreamGenerator : MonoBehaviour
         pieceStartS = pieceEndS;
 
         bool forceStartStraight = pieceIndex == 0;
+
+        // Check if we should place a designed piece
+        if (!forceStartStraight && config.designedPiecePool != null &&
+            config.designedPiecePool.pieces.Count > 0)
+        {
+            float threshold = Mathf.Lerp(
+                Mathf.Max(0f, config.minProceduralBetweenDesigned),
+                Mathf.Max(0f, config.maxProceduralBetweenDesigned),
+                Hash01(pieceIndex, 100)
+            );
+
+            if (proceduralDistanceSinceLastDesigned >= threshold)
+            {
+                bool mirrored;
+                DesignedRoadPiece piece = SelectDesignedPiece(out mirrored);
+                if (piece != null && piece.arcLength > 0f)
+                {
+                    currentPieceType = PieceType.Designed;
+                    currentDesignedPiece = piece;
+                    currentDesignedPieceMirrored = mirrored;
+                    float yawDelta = mirrored ? -piece.totalYawDeltaDeg : piece.totalYawDeltaDeg;
+                    cumulativeYawDeg += yawDelta;
+                    pieceEndS = pieceStartS + piece.arcLength;
+                    pieceTurnRateDegPerMeter = mirrored ? -piece.entryTurnRate : piece.entryTurnRate;
+                    proceduralDistanceSinceLastDesigned = 0f;
+                    return;
+                }
+            }
+        }
+
+        // Procedural piece (straight or curve)
+        currentPieceType = PieceType.Straight;
+        currentDesignedPiece = null;
+        currentDesignedPieceMirrored = false;
+
         bool isCurve = !forceStartStraight && Hash01(pieceIndex, 0) < Mathf.Clamp01(config.curvePieceProbability);
 
         float pieceLength;
@@ -637,6 +704,8 @@ public class RoadStreamGenerator : MonoBehaviour
 
         if (isCurve)
         {
+            currentPieceType = PieceType.Curve;
+
             float minCurveLength = Mathf.Max(8f, config.minCurveLength);
             float maxCurveLength = Mathf.Max(minCurveLength, config.maxCurveLength);
             pieceLength = Mathf.Lerp(minCurveLength, maxCurveLength, Hash01(pieceIndex, 1));
@@ -657,6 +726,7 @@ public class RoadStreamGenerator : MonoBehaviour
 
             turnRate = direction * absRate;
             previousCurveTurnRateDegPerMeter = turnRate;
+            cumulativeYawDeg += turnRate * pieceLength;
         }
         else
         {
@@ -667,6 +737,89 @@ public class RoadStreamGenerator : MonoBehaviour
 
         pieceEndS = pieceStartS + Mathf.Max(sampleDistance, pieceLength);
         pieceTurnRateDegPerMeter = turnRate;
+        proceduralDistanceSinceLastDesigned += pieceLength;
+    }
+
+    private DesignedRoadPiece SelectDesignedPiece(out bool mirrored)
+    {
+        mirrored = false;
+        var pool = config.designedPiecePool;
+        if (pool == null || pool.pieces.Count == 0)
+            return null;
+
+        float headingError = Mathf.DeltaAngle(config.targetBearing, cumulativeYawDeg);
+        float strength = Mathf.Clamp01(config.headingCorrectionStrength);
+
+        // Build weighted candidate list (each entry + optional mirror = up to 2 candidates per entry)
+        // To keep it simple and allocation-free, do two passes: compute total weight, then select.
+        float totalWeight = 0f;
+        int entryCount = pool.pieces.Count;
+
+        for (int i = 0; i < entryCount; i++)
+        {
+            var entry = pool.pieces[i];
+            if (entry.piece == null || entry.piece.arcLength <= 0f || entry.weight <= 0f)
+                continue;
+
+            totalWeight += ScoreCandidate(entry.weight, entry.piece.totalYawDeltaDeg, headingError, strength);
+
+            if (entry.canMirror)
+                totalWeight += ScoreCandidate(entry.weight, -entry.piece.totalYawDeltaDeg, headingError, strength);
+        }
+
+        if (totalWeight <= 0f)
+            return null;
+
+        float roll = Hash01(pieceIndex, 200) * totalWeight;
+        float accumulated = 0f;
+
+        for (int i = 0; i < entryCount; i++)
+        {
+            var entry = pool.pieces[i];
+            if (entry.piece == null || entry.piece.arcLength <= 0f || entry.weight <= 0f)
+                continue;
+
+            // Normal orientation
+            accumulated += ScoreCandidate(entry.weight, entry.piece.totalYawDeltaDeg, headingError, strength);
+            if (roll <= accumulated)
+            {
+                mirrored = false;
+                return entry.piece;
+            }
+
+            // Mirrored orientation
+            if (entry.canMirror)
+            {
+                accumulated += ScoreCandidate(entry.weight, -entry.piece.totalYawDeltaDeg, headingError, strength);
+                if (roll <= accumulated)
+                {
+                    mirrored = true;
+                    return entry.piece;
+                }
+            }
+        }
+
+        // Fallback (floating-point drift): return first valid piece
+        for (int i = 0; i < entryCount; i++)
+        {
+            var entry = pool.pieces[i];
+            if (entry.piece != null && entry.piece.arcLength > 0f && entry.weight > 0f)
+            {
+                Debug.LogWarning("[RoadStream] Weighted selection fallback triggered.");
+                return entry.piece;
+            }
+        }
+
+        return null;
+    }
+
+    private float ScoreCandidate(float baseWeight, float yawDelta, float headingError, float strength)
+    {
+        // Positive correction score when piece steers toward target bearing
+        float errorAfter = Mathf.Abs(headingError + yawDelta);
+        float errorBefore = Mathf.Abs(headingError);
+        float correctionScore = (errorBefore - errorAfter) * 0.01f;
+        return Mathf.Max(0.001f, baseWeight * (1f + strength * correctionScore));
     }
 
     private float Hash01(int index, int salt)

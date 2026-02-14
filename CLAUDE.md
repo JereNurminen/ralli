@@ -7,6 +7,7 @@ Endless rally driving game set in Nordic forests. RWD-focused vehicle physics, p
 - **Engine:** Unity 6 LTS (6000.0.45f1)
 - **Rendering:** Universal Render Pipeline (URP)
 - **Input:** New Input System
+- **Splines:** Unity Splines 2.8.3 (road piece authoring)
 - **Platform:** Desktop (MVP)
 
 ## Architecture Decisions
@@ -16,6 +17,7 @@ Endless rally driving game set in Nordic forests. RWD-focused vehicle physics, p
 - **RWD-first** with AWD support (rear-biased torque split).
 - **Vertex color encoding** for surface data (R=asphalt, G=gravel, B=ice/snow, A=wetness).
 - **Seeded procedural generation** for deterministic road streams.
+- **Designed road pieces** — spline-authored road sequences (hairpins, chicanes, S-curves) baked to AnimationCurve data, placed by the RoadStream among procedural filler with heading-correction weighting.
 - **ScriptableObjects** for all configuration (car handling, tires, drivetrain, surfaces, road gen, difficulty).
 
 ## Implementation Phases
@@ -42,7 +44,8 @@ Endless rally driving game set in Nordic forests. RWD-focused vehicle physics, p
 Assets/
   Scripts/
     Vehicle/       # Car physics, suspension, drivetrain, input
-    Road/          # Road generation, chunking, profiles
+    Road/          # Road generation, chunking, profiles, designed pieces
+      Editor/      # Spline authoring tools (editor-only)
     Surfaces/      # Surface resolver, friction model
     Gameplay/      # Scoring, chase/threat, traffic, meta
     Core/          # Shared utilities, camera, game state
