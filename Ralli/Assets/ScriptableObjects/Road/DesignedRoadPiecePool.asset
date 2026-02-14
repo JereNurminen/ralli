@@ -12,4 +12,16 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 52d2bb4edb7f1433db632cf5a4e1d10f, type: 3}
   m_Name: DesignedRoadPiecePool
   m_EditorClassIdentifier: 
-  pieces: []
+  pieces:
+  - piece: {fileID: 11400000, guid: ebc7ce07971d24038a92f60deb6dc499, type: 2}
+    weight: 1.22
+    canMirror: 0
+  - piece: {fileID: 11400000, guid: 94dd67b1368fa4241842e08f51c10b80, type: 2}
+    weight: 10
+    canMirror: 1
+  - piece: {fileID: 11400000, guid: 10928fa2f37424f0c95fe4687896552e, type: 2}
+    weight: 1.63
+    canMirror: 1
+  - piece: {fileID: 11400000, guid: f93e787e1c99f470fb7cd6b90ffd434e, type: 2}
+    weight: 8.73
+    canMirror: 0

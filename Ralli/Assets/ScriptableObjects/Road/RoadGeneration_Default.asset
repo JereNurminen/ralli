@@ -26,7 +26,8 @@ MonoBehaviour:
   ditchWidth: 4
   ditchDepth: 1.25
   ditchBottomFlatWidth: 1
-  forestFloorWidth: 100
+  collidableForestWidth: 10
+  dropSkirtDepth: 3
   forestFloorYOffset: -0.5
   maxTurnRateDegPerMeter: 1
   turnRateResponse: 0.2
@@ -35,7 +36,7 @@ MonoBehaviour:
   smallBumpWavelength: 42
   smallBumpOccurrence: 0.22
   smallBumpPatchLength: 160
-  largeHillAmplitude: 8
+  largeHillAmplitude: 9.97
   largeHillWavelength: 360
   maxSlopeAngleDeg: 8
   slopeResponse: 0.12
@@ -47,8 +48,13 @@ MonoBehaviour:
   minCurveTurnRateDegPerMeter: 0.12
   maxCurveTurnRateDegPerMeter: 0.3
   oppositeCurveChance: 0.65
-  bankFromCurvature: 8
-  maxBankAngle: 8
+  designedPiecePool: {fileID: 11400000, guid: 0c56a6ebf90934f2fb8cffae3bdb53a3, type: 2}
+  minProceduralBetweenDesigned: 200
+  maxProceduralBetweenDesigned: 600
+  headingCorrectionStrength: 1
+  targetBearing: 0
+  bankFromCurvature: 6.75
+  maxBankAngle: 5.35
   bankTurnRateDeadzone: 0.08
   bankTargetResponse: 0.08
   bankChangeRateDegPerMeter: 1

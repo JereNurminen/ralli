@@ -364,14 +364,18 @@ public class RoadStreamGenerator : MonoBehaviour
         float ditchWidth = Mathf.Max(0f, config.ditchWidth);
         float ditchDepth = Mathf.Max(0f, config.ditchDepth);
         float ditchBottomFlatWidth = Mathf.Clamp(config.ditchBottomFlatWidth, 0f, ditchWidth);
-        float forestFloorWidth = Mathf.Max(0f, config.forestFloorWidth);
+        float dropSkirtDepth = Mathf.Max(0f, config.dropSkirtDepth);
         float forestFloorDrop = -config.forestFloorYOffset;
+        float collidableForestWidth = Mathf.Max(0f, config.collidableForestWidth);
 
         Color asphalt = new Color(1f, 0f, 0f, 0f);
         Color dirt = new Color(0f, 1f, 0f, 0f);
         Color forest = new Color(0f, 1f, 1f, 0f);
 
-        if (shoulderWidth <= 0.001f && ditchWidth <= 0.001f && forestFloorWidth <= 0.001f)
+        bool hasEdge = shoulderWidth > 0.001f || ditchWidth > 0.001f
+                       || collidableForestWidth > 0.001f || dropSkirtDepth > 0.001f;
+
+        if (!hasEdge)
         {
             return new[]
             {
@@ -382,7 +386,7 @@ public class RoadStreamGenerator : MonoBehaviour
 
         float shoulderOuter = halfRoadWidth + shoulderWidth;
         float ditchOuter = shoulderOuter + ditchWidth;
-        float forestOuter = ditchOuter + forestFloorWidth;
+        float forestOuter = ditchOuter + collidableForestWidth;
         float ditchSideWidth = Mathf.Max(0f, (ditchWidth - ditchBottomFlatWidth) * 0.5f);
         float ditchBottomInner = shoulderOuter + ditchSideWidth;
         float ditchBottomOuter = ditchOuter - ditchSideWidth;
@@ -392,7 +396,8 @@ public class RoadStreamGenerator : MonoBehaviour
 
         void AddPoint(float lateral, float drop, Color color)
         {
-            if (points.Count > 0 && Mathf.Abs(points[points.Count - 1].lateral - lateral) < 0.0001f)
+            if (points.Count > 0 && Mathf.Abs(points[points.Count - 1].lateral - lateral) < 0.0001f
+                && Mathf.Abs(points[points.Count - 1].drop - drop) < 0.0001f)
             {
                 points[points.Count - 1] = new ProfilePoint { lateral = lateral, drop = drop, color = color };
                 return;
@@ -401,7 +406,13 @@ public class RoadStreamGenerator : MonoBehaviour
             points.Add(new ProfilePoint { lateral = lateral, drop = drop, color = color });
         }
 
-        if (forestFloorWidth > 0.001f)
+        // Left side: skirt bottom → forest outer edge → ditch → shoulder
+        if (dropSkirtDepth > 0.001f)
+        {
+            AddPoint(-forestOuter, forestFloorDrop + dropSkirtDepth, forest);
+        }
+
+        if (collidableForestWidth > 0.001f)
         {
             AddPoint(-forestOuter, forestFloorDrop, forest);
         }
@@ -416,7 +427,7 @@ public class RoadStreamGenerator : MonoBehaviour
             }
         }
 
-        if (shoulderWidth > 0.001f || ditchWidth > 0.001f || forestFloorWidth > 0.001f)
+        if (hasEdge)
         {
             AddPoint(-shoulderOuter, shoulderDrop, dirt);
         }
@@ -424,7 +435,8 @@ public class RoadStreamGenerator : MonoBehaviour
         AddPoint(-halfRoadWidth, 0f, asphalt);
         AddPoint(halfRoadWidth, 0f, asphalt);
 
-        if (shoulderWidth > 0.001f || ditchWidth > 0.001f || forestFloorWidth > 0.001f)
+        // Right side: shoulder → ditch → forest outer edge → skirt bottom
+        if (hasEdge)
         {
             AddPoint(shoulderOuter, shoulderDrop, dirt);
         }
@@ -439,9 +451,14 @@ public class RoadStreamGenerator : MonoBehaviour
             AddPoint(ditchOuter, forestFloorDrop, dirt);
         }
 
-        if (forestFloorWidth > 0.001f)
+        if (collidableForestWidth > 0.001f)
         {
             AddPoint(forestOuter, forestFloorDrop, forest);
+        }
+
+        if (dropSkirtDepth > 0.001f)
+        {
+            AddPoint(forestOuter, forestFloorDrop + dropSkirtDepth, forest);
         }
 
         return points.ToArray();
