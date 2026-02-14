@@ -14,14 +14,32 @@ MonoBehaviour:
   m_EditorClassIdentifier:
   seed: 1337
   chunkLength: 140
+  minChunkLength: 100
+  maxChunkLength: 180
   samplesPerChunk: 80
   chunksAhead: 8
   chunksBehind: 2
   roadWidth: 16
   roadThickness: 0.35
-  curvatureFrequency: 0.006
-  maxTurnRateDegPerMeter: 0.22
+  maxTurnRateDegPerMeter: 0.3
   turnRateResponse: 0.08
+  enableHills: 1
+  smallBumpAmplitude: 0.9
+  smallBumpWavelength: 42
+  smallBumpOccurrence: 0.22
+  smallBumpPatchLength: 160
+  largeHillAmplitude: 8
+  largeHillWavelength: 360
+  maxSlopeAngleDeg: 8
+  slopeResponse: 0.12
+  curvePieceProbability: 0.72
+  minStraightLength: 28
+  maxStraightLength: 90
+  minCurveLength: 30
+  maxCurveLength: 75
+  minCurveTurnRateDegPerMeter: 0.12
+  maxCurveTurnRateDegPerMeter: 0.3
+  oppositeCurveChance: 0.65
   bankFromCurvature: 8
   maxBankAngle: 8
   bankTurnRateDeadzone: 0.08
@@ -32,3 +50,6 @@ MonoBehaviour:
   gizmoFrameLength: 1.5
   logSmoothnessDiagnostics: 1
   seamKinkWarningDeg: 2.5
+  drawSeamMarkers: 1
+  seamMarkerRadius: 0.6
+  seamMarkerHeight: 2.2

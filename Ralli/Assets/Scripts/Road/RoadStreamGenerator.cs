@@ -13,6 +13,7 @@ public class RoadStreamGenerator : MonoBehaviour
         public float bankAngle;
         public float bankTargetAngle;
         public float turnRateDegPerMeter;
+        public float slopeAngleDeg;
     }
 
     private class ChunkData
@@ -21,6 +22,17 @@ public class RoadStreamGenerator : MonoBehaviour
         public int sampleStartIndex;
         public int sampleEndIndex;
         public GameObject gameObject;
+    }
+
+    private class ChunkLayout
+    {
+        public int chunkIndex;
+        public int sampleStartIndex;
+        public int sampleEndIndex;
+        public int sampleCount;
+        public float startS;
+        public float endS;
+        public float length;
     }
 
     [Header("References")]
@@ -33,8 +45,14 @@ public class RoadStreamGenerator : MonoBehaviour
 
     private readonly List<RoadSample> samples = new List<RoadSample>(4096);
     private readonly Dictionary<int, ChunkData> chunks = new Dictionary<int, ChunkData>();
+    private readonly List<ChunkLayout> chunkLayouts = new List<ChunkLayout>(256);
 
     private float sampleDistance;
+    private int pieceIndex = -1;
+    private float pieceStartS;
+    private float pieceEndS;
+    private float pieceTurnRateDegPerMeter;
+    private float previousCurveTurnRateDegPerMeter;
 
     private void Start()
     {
@@ -64,11 +82,11 @@ public class RoadStreamGenerator : MonoBehaviour
 
         if (sampleDistance <= 0f)
         {
-            sampleDistance = config.chunkLength / Mathf.Max(2, config.samplesPerChunk);
+            sampleDistance = GetBaseChunkLength() / Mathf.Max(2, config.samplesPerChunk);
         }
 
         float playerS = EstimatePlayerS();
-        int playerChunk = Mathf.FloorToInt(playerS / Mathf.Max(1f, config.chunkLength));
+        int playerChunk = GetChunkIndexAtS(playerS);
 
         int minChunk = playerChunk - Mathf.Max(0, config.chunksBehind);
         int maxChunk = playerChunk + Mathf.Max(1, config.chunksAhead);
@@ -82,6 +100,8 @@ public class RoadStreamGenerator : MonoBehaviour
     {
         ClearChunks();
         samples.Clear();
+        chunkLayouts.Clear();
+        ResetPieceState();
 
         if (config == null)
         {
@@ -109,9 +129,9 @@ public class RoadStreamGenerator : MonoBehaviour
 
     private void CreateChunk(int chunkIndex)
     {
-        int baseSamplesPerChunk = Mathf.Max(2, config.samplesPerChunk);
-        int startSampleIndex = chunkIndex * baseSamplesPerChunk;
-        int endSampleIndex = (chunkIndex + 1) * baseSamplesPerChunk;
+        ChunkLayout layout = GetChunkLayout(chunkIndex);
+        int startSampleIndex = layout.sampleStartIndex;
+        int endSampleIndex = layout.sampleEndIndex;
 
         EnsureSamplesUpToIndex(endSampleIndex);
 
@@ -304,7 +324,20 @@ public class RoadStreamGenerator : MonoBehaviour
             float yawDelta = turnRateDegPerMeter * sampleDistance;
             float prevYaw = Mathf.Atan2(prev.tangent.x, prev.tangent.z) * Mathf.Rad2Deg;
             float yaw = prevYaw + yawDelta;
-            Vector3 tangent = Quaternion.Euler(0f, yaw, 0f) * Vector3.forward;
+            Vector3 horizontalForward = Quaternion.Euler(0f, yaw, 0f) * Vector3.forward;
+
+            float slopeAngleDeg = 0f;
+            if (config.enableHills)
+            {
+                float targetHeightNow = GetTargetElevation(s);
+                float targetHeightPrev = GetTargetElevation(prev.s);
+                float targetSlopeDeg = Mathf.Atan2(targetHeightNow - targetHeightPrev, sampleDistance) * Mathf.Rad2Deg;
+                targetSlopeDeg = Mathf.Clamp(targetSlopeDeg, -Mathf.Abs(config.maxSlopeAngleDeg), Mathf.Abs(config.maxSlopeAngleDeg));
+                slopeAngleDeg = Mathf.Lerp(prev.slopeAngleDeg, targetSlopeDeg, Mathf.Clamp01(config.slopeResponse));
+            }
+
+            float slopeRad = slopeAngleDeg * Mathf.Deg2Rad;
+            Vector3 tangent = (horizontalForward * Mathf.Cos(slopeRad) + Vector3.up * Mathf.Sin(slopeRad)).normalized;
 
             float absTurnRate = Mathf.Abs(turnRateDegPerMeter);
             float rawBankTarget = 0f;
@@ -314,7 +347,7 @@ public class RoadStreamGenerator : MonoBehaviour
                 float tCurve = Mathf.Clamp01((absTurnRate - config.bankTurnRateDeadzone) / denom);
                 tCurve = tCurve * tCurve * (3f - 2f * tCurve);
                 float signed = Mathf.Sign(turnRateDegPerMeter);
-                rawBankTarget = signed * Mathf.Min(config.maxBankAngle, config.bankFromCurvature) * tCurve;
+                rawBankTarget = -signed * Mathf.Min(config.maxBankAngle, config.bankFromCurvature) * tCurve;
             }
 
             float targetBankAngle = Mathf.Lerp(
@@ -346,7 +379,8 @@ public class RoadStreamGenerator : MonoBehaviour
                 up = up,
                 bankAngle = bankAngle,
                 bankTargetAngle = targetBankAngle,
-                turnRateDegPerMeter = turnRateDegPerMeter
+                turnRateDegPerMeter = turnRateDegPerMeter,
+                slopeAngleDeg = slopeAngleDeg
             };
 
             samples.Add(next);
@@ -362,7 +396,7 @@ public class RoadStreamGenerator : MonoBehaviour
 
         if (sampleDistance <= 0f)
         {
-            sampleDistance = config.chunkLength / Mathf.Max(2, config.samplesPerChunk);
+            sampleDistance = GetBaseChunkLength() / Mathf.Max(2, config.samplesPerChunk);
         }
 
         if (samples.Count > 0)
@@ -379,20 +413,120 @@ public class RoadStreamGenerator : MonoBehaviour
             right = transform.right.normalized,
             bankAngle = 0f,
             bankTargetAngle = 0f,
-            turnRateDegPerMeter = 0f
+            turnRateDegPerMeter = 0f,
+            slopeAngleDeg = 0f
         };
         samples.Add(first);
+        ResetPieceState();
     }
 
     private float GetTurnRateDegPerMeter(float s)
     {
-        float x = (config.seed * 0.0007f) + s * config.curvatureFrequency;
+        while (s >= pieceEndS)
+        {
+            AdvancePiece();
+        }
 
-        float n1 = Mathf.PerlinNoise(x, 0.17f) * 2f - 1f;
-        float n2 = Mathf.PerlinNoise(x * 2.13f + 19.1f, 0.73f) * 2f - 1f;
-        float blended = n1 * 0.7f + n2 * 0.3f;
+        return pieceTurnRateDegPerMeter;
+    }
 
-        return blended * config.maxTurnRateDegPerMeter;
+    private float GetTargetElevation(float s)
+    {
+        if (!config.enableHills)
+        {
+            return transform.position.y;
+        }
+
+        float smallWavelength = Mathf.Max(6f, config.smallBumpWavelength);
+        float largeWavelength = Mathf.Max(60f, config.largeHillWavelength);
+        float smallOmega = (Mathf.PI * 2f) / smallWavelength;
+        float largeOmega = (Mathf.PI * 2f) / largeWavelength;
+        float bumpPatchLength = Mathf.Max(20f, config.smallBumpPatchLength);
+
+        float seedOffset = config.seed * 0.137f;
+        float smallPhase = (s + seedOffset * 17f) * smallOmega;
+        float largePhaseA = (s + seedOffset * 53f) * largeOmega;
+        float largePhaseB = (s + seedOffset * 29f) * (largeOmega * 0.45f);
+
+        float bumpMaskNoise = Mathf.PerlinNoise((s + seedOffset * 97f) / bumpPatchLength, 0.37f);
+        float bumpThreshold = 1f - Mathf.Clamp01(config.smallBumpOccurrence);
+        float bumpMask = Mathf.InverseLerp(bumpThreshold, 1f, bumpMaskNoise);
+        bumpMask = bumpMask * bumpMask * (3f - 2f * bumpMask);
+
+        float small = Mathf.Sin(smallPhase) * config.smallBumpAmplitude * bumpMask;
+        float large = (Mathf.Sin(largePhaseA) * 0.7f + Mathf.Sin(largePhaseB) * 0.3f) * config.largeHillAmplitude;
+
+        return transform.position.y + small + large;
+    }
+
+    private void ResetPieceState()
+    {
+        pieceIndex = -1;
+        pieceStartS = 0f;
+        pieceEndS = 0f;
+        pieceTurnRateDegPerMeter = 0f;
+        previousCurveTurnRateDegPerMeter = 0f;
+    }
+
+    private void AdvancePiece()
+    {
+        pieceIndex++;
+        pieceStartS = pieceEndS;
+
+        bool forceStartStraight = pieceIndex == 0;
+        bool isCurve = !forceStartStraight && Hash01(pieceIndex, 0) < Mathf.Clamp01(config.curvePieceProbability);
+
+        float pieceLength;
+        float turnRate = 0f;
+
+        if (isCurve)
+        {
+            float minCurveLength = Mathf.Max(8f, config.minCurveLength);
+            float maxCurveLength = Mathf.Max(minCurveLength, config.maxCurveLength);
+            pieceLength = Mathf.Lerp(minCurveLength, maxCurveLength, Hash01(pieceIndex, 1));
+
+            float curveRateCap = Mathf.Max(0.001f, config.maxTurnRateDegPerMeter);
+            float minCurveRate = Mathf.Min(Mathf.Max(0.001f, config.minCurveTurnRateDegPerMeter), curveRateCap);
+            float maxCurveRateCfg = Mathf.Max(minCurveRate, config.maxCurveTurnRateDegPerMeter);
+            float maxCurveRate = Mathf.Min(maxCurveRateCfg, curveRateCap);
+            float absRate = Mathf.Lerp(minCurveRate, maxCurveRate, Hash01(pieceIndex, 2));
+
+            float direction = Hash01(pieceIndex, 3) < 0.5f ? -1f : 1f;
+            if (Mathf.Abs(previousCurveTurnRateDegPerMeter) > 0.001f)
+            {
+                float previousDirection = Mathf.Sign(previousCurveTurnRateDegPerMeter);
+                bool flipDirection = Hash01(pieceIndex, 4) < Mathf.Clamp01(config.oppositeCurveChance);
+                direction = flipDirection ? -previousDirection : previousDirection;
+            }
+
+            turnRate = direction * absRate;
+            previousCurveTurnRateDegPerMeter = turnRate;
+        }
+        else
+        {
+            float minStraightLength = Mathf.Max(10f, config.minStraightLength);
+            float maxStraightLength = Mathf.Max(minStraightLength, config.maxStraightLength);
+            pieceLength = Mathf.Lerp(minStraightLength, maxStraightLength, Hash01(pieceIndex, 5));
+        }
+
+        pieceEndS = pieceStartS + Mathf.Max(sampleDistance, pieceLength);
+        pieceTurnRateDegPerMeter = turnRate;
+    }
+
+    private float Hash01(int index, int salt)
+    {
+        unchecked
+        {
+            uint x = (uint)config.seed;
+            x ^= (uint)(index + 1) * 747796405u;
+            x ^= (uint)(salt + 17) * 2891336453u;
+            x ^= x >> 16;
+            x *= 2246822519u;
+            x ^= x >> 13;
+            x *= 3266489917u;
+            x ^= x >> 16;
+            return (x & 0x00FFFFFFu) / 16777215f;
+        }
     }
 
     private float EstimatePlayerS()
@@ -417,6 +551,99 @@ public class RoadStreamGenerator : MonoBehaviour
         }
 
         return bestS;
+    }
+
+    private float GetBaseChunkLength()
+    {
+        float fallback = Mathf.Max(20f, config.chunkLength);
+        float min = config.minChunkLength > 0f ? config.minChunkLength : fallback;
+        float max = config.maxChunkLength > 0f ? config.maxChunkLength : fallback;
+        min = Mathf.Max(20f, min);
+        max = Mathf.Max(min, max);
+        return 0.5f * (min + max);
+    }
+
+    private float GetChunkLengthForIndex(int chunkIndex)
+    {
+        float fallback = Mathf.Max(20f, config.chunkLength);
+        float min = config.minChunkLength > 0f ? config.minChunkLength : fallback;
+        float max = config.maxChunkLength > 0f ? config.maxChunkLength : fallback;
+        min = Mathf.Max(20f, min);
+        max = Mathf.Max(min, max);
+        return Mathf.Lerp(min, max, Hash01(chunkIndex, 101));
+    }
+
+    private void EnsureChunkLayoutsUpToIndex(int chunkIndex)
+    {
+        if (chunkIndex < 0)
+        {
+            return;
+        }
+
+        while (chunkLayouts.Count <= chunkIndex)
+        {
+            int index = chunkLayouts.Count;
+            ChunkLayout previous = index > 0 ? chunkLayouts[index - 1] : null;
+            int sampleStartIndex = previous == null ? 0 : previous.sampleEndIndex;
+            float startS = previous == null ? 0f : previous.endS;
+
+            float chunkLength = GetChunkLengthForIndex(index);
+            int sampleCount = Mathf.Max(2, Mathf.RoundToInt(chunkLength / Mathf.Max(0.01f, sampleDistance)));
+            int sampleEndIndex = sampleStartIndex + sampleCount;
+            float endS = startS + sampleCount * sampleDistance;
+
+            chunkLayouts.Add(new ChunkLayout
+            {
+                chunkIndex = index,
+                sampleStartIndex = sampleStartIndex,
+                sampleEndIndex = sampleEndIndex,
+                sampleCount = sampleCount,
+                startS = startS,
+                endS = endS,
+                length = chunkLength
+            });
+        }
+    }
+
+    private ChunkLayout GetChunkLayout(int chunkIndex)
+    {
+        EnsureChunkLayoutsUpToIndex(chunkIndex);
+        return chunkLayouts[chunkIndex];
+    }
+
+    private int GetChunkIndexAtS(float s)
+    {
+        if (s <= 0f)
+        {
+            return 0;
+        }
+
+        while (chunkLayouts.Count == 0 || chunkLayouts[chunkLayouts.Count - 1].endS <= s)
+        {
+            EnsureChunkLayoutsUpToIndex(chunkLayouts.Count);
+        }
+
+        int lo = 0;
+        int hi = chunkLayouts.Count - 1;
+        while (lo <= hi)
+        {
+            int mid = (lo + hi) >> 1;
+            ChunkLayout layout = chunkLayouts[mid];
+            if (s < layout.startS)
+            {
+                hi = mid - 1;
+            }
+            else if (s >= layout.endS)
+            {
+                lo = mid + 1;
+            }
+            else
+            {
+                return layout.chunkIndex;
+            }
+        }
+
+        return Mathf.Max(0, lo - 1);
     }
 
     private void CullChunksOutside(int minChunk, int maxChunk)
@@ -479,7 +706,6 @@ public class RoadStreamGenerator : MonoBehaviour
         float maxTangentDeltaDeg = 0f;
         float maxBankStepDeg = 0f;
         float maxSeamKinkDeg = 0f;
-        int samplesPerChunk = Mathf.Max(2, config.samplesPerChunk);
 
         for (int i = 1; i < samples.Count; i++)
         {
@@ -493,12 +719,21 @@ public class RoadStreamGenerator : MonoBehaviour
             maxBankStepDeg = Mathf.Max(maxBankStepDeg, bankStep);
         }
 
-        for (int i = samplesPerChunk; i < samples.Count - samplesPerChunk; i += samplesPerChunk)
+        if (chunkLayouts.Count > 1)
         {
-            Vector3 a = (samples[i].position - samples[i - 1].position).normalized;
-            Vector3 b = (samples[i + 1].position - samples[i].position).normalized;
-            float kink = Vector3.Angle(a, b);
-            maxSeamKinkDeg = Mathf.Max(maxSeamKinkDeg, kink);
+            for (int i = 1; i < chunkLayouts.Count; i++)
+            {
+                int seamIndex = chunkLayouts[i].sampleStartIndex;
+                if (seamIndex <= 0 || seamIndex + 1 >= samples.Count)
+                {
+                    continue;
+                }
+
+                Vector3 a = (samples[seamIndex].position - samples[seamIndex - 1].position).normalized;
+                Vector3 b = (samples[seamIndex + 1].position - samples[seamIndex].position).normalized;
+                float kink = Vector3.Angle(a, b);
+                maxSeamKinkDeg = Mathf.Max(maxSeamKinkDeg, kink);
+            }
         }
 
         Debug.Log(
@@ -543,6 +778,42 @@ public class RoadStreamGenerator : MonoBehaviour
 
             Gizmos.color = Color.cyan;
             Gizmos.DrawLine(sample.position, sample.position + sample.tangent * length);
+        }
+
+        DrawSeamMarkers();
+    }
+
+    private void DrawSeamMarkers()
+    {
+        if (config == null || !config.drawSeamMarkers || samples.Count < 2)
+        {
+            return;
+        }
+
+        float radius = Mathf.Max(0.05f, config.seamMarkerRadius);
+        float height = Mathf.Max(0.2f, config.seamMarkerHeight);
+        Color seamColor = new Color(1f, 0.2f, 0.2f, 0.9f);
+
+        if (chunkLayouts.Count <= 1)
+        {
+            return;
+        }
+
+        for (int i = 1; i < chunkLayouts.Count; i++)
+        {
+            int seamSampleIndex = chunkLayouts[i].sampleStartIndex;
+            if (seamSampleIndex <= 0 || seamSampleIndex >= samples.Count)
+            {
+                continue;
+            }
+
+            RoadSample seam = samples[seamSampleIndex];
+            Vector3 basePos = seam.position + seam.up * 0.06f;
+            Vector3 topPos = basePos + seam.up * height;
+
+            Gizmos.color = seamColor;
+            Gizmos.DrawSphere(basePos, radius);
+            Gizmos.DrawLine(basePos, topPos);
         }
     }
 
