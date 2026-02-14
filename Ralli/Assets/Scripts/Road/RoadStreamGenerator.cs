@@ -35,6 +35,13 @@ public class RoadStreamGenerator : MonoBehaviour
         public float length;
     }
 
+    private struct ProfilePoint
+    {
+        public float lateral;
+        public float drop;
+        public Color color;
+    }
+
     [Header("References")]
     [SerializeField] private RoadGenerationConfig config;
     [SerializeField] private Transform target;
@@ -166,99 +173,122 @@ public class RoadStreamGenerator : MonoBehaviour
 
     private Mesh BuildChunkVisualMesh(int chunkIndex, int startSampleIndex, int endSampleIndex)
     {
-        // Seam-safe chunk edges: each chunk includes both start and end samples.
         int usableStart = startSampleIndex;
-        int usableCount = (endSampleIndex - usableStart) + 1;
-        usableCount = Mathf.Max(2, usableCount);
-
-        // Per sample: LT, RT, LB, RB
-        Vector3[] vertices = new Vector3[usableCount * 4];
-        Color[] colors = new Color[usableCount * 4];
-        Vector2[] uv = new Vector2[usableCount * 4];
-        int[] triangles = new int[(usableCount - 1) * 24];
-
+        int usableCount = Mathf.Max(2, (endSampleIndex - usableStart) + 1);
         float halfWidth = config.roadWidth * 0.5f;
         float thickness = Mathf.Max(0.05f, config.roadThickness);
+        ProfilePoint[] profile = BuildProfile(halfWidth);
+        int profileCount = profile.Length;
+        int stride = profileCount * 2; // top + bottom
+
+        Vector3[] vertices = new Vector3[usableCount * stride];
+        Vector3[] normals = new Vector3[usableCount * stride];
+        Color[] colors = new Color[usableCount * stride];
+        Vector2[] uv = new Vector2[usableCount * stride];
+        Vector2[] profileNormals = BuildProfileNormals(profile);
+
+        int topStripTriangles = (usableCount - 1) * (profileCount - 1) * 6;
+        int bottomStripTriangles = topStripTriangles;
+        int sideTriangles = (usableCount - 1) * 12; // left + right
+        int[] triangles = new int[topStripTriangles + bottomStripTriangles + sideTriangles];
 
         for (int i = 0; i < usableCount; i++)
         {
             RoadSample sample = samples[usableStart + i];
-
-            Vector3 leftTop = sample.position - sample.right * halfWidth;
-            Vector3 rightTop = sample.position + sample.right * halfWidth;
-            Vector3 down = -sample.up * thickness;
-            Vector3 leftBottom = leftTop + down;
-            Vector3 rightBottom = rightTop + down;
-
-            int v = i * 4;
-            vertices[v] = leftTop;
-            vertices[v + 1] = rightTop;
-            vertices[v + 2] = leftBottom;
-            vertices[v + 3] = rightBottom;
-
+            int rowBase = i * stride;
             float vCoord = sample.s * 0.1f;
-            uv[v] = new Vector2(0f, vCoord);       // LT
-            uv[v + 1] = new Vector2(1f, vCoord);   // RT
-            uv[v + 2] = new Vector2(0f, vCoord);   // LB
-            uv[v + 3] = new Vector2(1f, vCoord);   // RB
 
-            // Surface pipeline placeholder: pure asphalt for now.
-            Color asphalt = new Color(1f, 0f, 0f, 0f);
-            colors[v] = asphalt;
-            colors[v + 1] = asphalt;
-            colors[v + 2] = asphalt;
-            colors[v + 3] = asphalt;
+            for (int j = 0; j < profileCount; j++)
+            {
+                ProfilePoint point = profile[j];
+                Vector3 top = sample.position + sample.right * point.lateral - sample.up * point.drop;
+                Vector3 bottom = top - sample.up * thickness;
+                float u = profileCount <= 1 ? 0f : j / (float)(profileCount - 1);
+
+                int topIndex = rowBase + j;
+                int bottomIndex = rowBase + profileCount + j;
+
+                vertices[topIndex] = top;
+                vertices[bottomIndex] = bottom;
+                Vector3 topNormal = (sample.right * profileNormals[j].x + sample.up * profileNormals[j].y).normalized;
+                normals[topIndex] = topNormal;
+                normals[bottomIndex] = -topNormal;
+                colors[topIndex] = point.color;
+                colors[bottomIndex] = point.color;
+                uv[topIndex] = new Vector2(u, vCoord);
+                uv[bottomIndex] = new Vector2(u, vCoord);
+            }
         }
 
         int t = 0;
         for (int i = 0; i < usableCount - 1; i++)
         {
-            int v = i * 4;
-            int n = v + 4;
+            int aRow = i * stride;
+            int bRow = (i + 1) * stride;
 
-            // Top face (LT, RT, next LT, next RT)
-            triangles[t++] = v;
-            triangles[t++] = n;
-            triangles[t++] = v + 1;
-            triangles[t++] = v + 1;
-            triangles[t++] = n;
-            triangles[t++] = n + 1;
+            for (int j = 0; j < profileCount - 1; j++)
+            {
+                int a0 = aRow + j;
+                int a1 = aRow + j + 1;
+                int b0 = bRow + j;
+                int b1 = bRow + j + 1;
 
-            // Bottom face (reverse winding)
-            triangles[t++] = v + 2;
-            triangles[t++] = v + 3;
-            triangles[t++] = n + 2;
-            triangles[t++] = v + 3;
-            triangles[t++] = n + 3;
-            triangles[t++] = n + 2;
+                // Top strip
+                triangles[t++] = a0;
+                triangles[t++] = b0;
+                triangles[t++] = a1;
+                triangles[t++] = a1;
+                triangles[t++] = b0;
+                triangles[t++] = b1;
 
-            // Left side
-            triangles[t++] = v;
-            triangles[t++] = v + 2;
-            triangles[t++] = n;
-            triangles[t++] = v + 2;
-            triangles[t++] = n + 2;
-            triangles[t++] = n;
+                // Bottom strip (reverse winding)
+                int a0b = aRow + profileCount + j;
+                int a1b = aRow + profileCount + j + 1;
+                int b0b = bRow + profileCount + j;
+                int b1b = bRow + profileCount + j + 1;
+                triangles[t++] = a0b;
+                triangles[t++] = a1b;
+                triangles[t++] = b0b;
+                triangles[t++] = a1b;
+                triangles[t++] = b1b;
+                triangles[t++] = b0b;
+            }
 
-            // Right side
-            triangles[t++] = v + 1;
-            triangles[t++] = n + 1;
-            triangles[t++] = v + 3;
-            triangles[t++] = v + 3;
-            triangles[t++] = n + 1;
-            triangles[t++] = n + 3;
+            // Left outer side
+            int leftTopA = aRow;
+            int leftBottomA = aRow + profileCount;
+            int leftTopB = bRow;
+            int leftBottomB = bRow + profileCount;
+            triangles[t++] = leftTopA;
+            triangles[t++] = leftBottomA;
+            triangles[t++] = leftTopB;
+            triangles[t++] = leftBottomA;
+            triangles[t++] = leftBottomB;
+            triangles[t++] = leftTopB;
+
+            // Right outer side
+            int rightTopA = aRow + profileCount - 1;
+            int rightBottomA = aRow + (profileCount * 2) - 1;
+            int rightTopB = bRow + profileCount - 1;
+            int rightBottomB = bRow + (profileCount * 2) - 1;
+            triangles[t++] = rightTopA;
+            triangles[t++] = rightTopB;
+            triangles[t++] = rightBottomA;
+            triangles[t++] = rightBottomA;
+            triangles[t++] = rightTopB;
+            triangles[t++] = rightBottomB;
         }
 
         Mesh mesh = new Mesh
         {
             name = $"RoadChunkMesh_{chunkIndex:0000}",
             vertices = vertices,
+            normals = normals,
             colors = colors,
             uv = uv,
             triangles = triangles
         };
 
-        mesh.RecalculateNormals();
         mesh.RecalculateBounds();
         return mesh;
     }
@@ -266,32 +296,43 @@ public class RoadStreamGenerator : MonoBehaviour
     private Mesh BuildChunkColliderMesh(int chunkIndex, int startSampleIndex, int endSampleIndex)
     {
         int usableStart = startSampleIndex;
-        int usableCount = (endSampleIndex - usableStart) + 1;
-        usableCount = Mathf.Max(2, usableCount);
-
-        Vector3[] vertices = new Vector3[usableCount * 2];
-        int[] triangles = new int[(usableCount - 1) * 6];
-
+        int usableCount = Mathf.Max(2, (endSampleIndex - usableStart) + 1);
         float halfWidth = config.roadWidth * 0.5f;
+        ProfilePoint[] profile = BuildProfile(halfWidth);
+        int profileCount = profile.Length;
+
+        Vector3[] vertices = new Vector3[usableCount * profileCount];
+        int[] triangles = new int[(usableCount - 1) * (profileCount - 1) * 6];
 
         for (int i = 0; i < usableCount; i++)
         {
             RoadSample sample = samples[usableStart + i];
-            int v = i * 2;
-            vertices[v] = sample.position - sample.right * halfWidth;
-            vertices[v + 1] = sample.position + sample.right * halfWidth;
+            int rowBase = i * profileCount;
+            for (int j = 0; j < profileCount; j++)
+            {
+                ProfilePoint point = profile[j];
+                vertices[rowBase + j] = sample.position + sample.right * point.lateral - sample.up * point.drop;
+            }
         }
 
         int t = 0;
         for (int i = 0; i < usableCount - 1; i++)
         {
-            int v = i * 2;
-            triangles[t++] = v;
-            triangles[t++] = v + 2;
-            triangles[t++] = v + 1;
-            triangles[t++] = v + 1;
-            triangles[t++] = v + 2;
-            triangles[t++] = v + 3;
+            int aRow = i * profileCount;
+            int bRow = (i + 1) * profileCount;
+            for (int j = 0; j < profileCount - 1; j++)
+            {
+                int a0 = aRow + j;
+                int a1 = aRow + j + 1;
+                int b0 = bRow + j;
+                int b1 = bRow + j + 1;
+                triangles[t++] = a0;
+                triangles[t++] = b0;
+                triangles[t++] = a1;
+                triangles[t++] = a1;
+                triangles[t++] = b0;
+                triangles[t++] = b1;
+            }
         }
 
         Mesh mesh = new Mesh
@@ -304,6 +345,67 @@ public class RoadStreamGenerator : MonoBehaviour
         mesh.RecalculateNormals();
         mesh.RecalculateBounds();
         return mesh;
+    }
+
+    private ProfilePoint[] BuildProfile(float halfRoadWidth)
+    {
+        float shoulderWidth = Mathf.Max(0f, config.shoulderWidth);
+        float shoulderDrop = Mathf.Max(0f, config.shoulderDrop);
+        float ditchWidth = Mathf.Max(0f, config.ditchWidth);
+        float ditchDepth = Mathf.Max(0f, config.ditchDepth);
+
+        Color asphalt = new Color(1f, 0f, 0f, 0f);
+        Color dirt = new Color(0f, 1f, 0f, 0f);
+
+        if (shoulderWidth <= 0.001f && ditchWidth <= 0.001f)
+        {
+            return new[]
+            {
+                new ProfilePoint { lateral = -halfRoadWidth, drop = 0f, color = asphalt },
+                new ProfilePoint { lateral = halfRoadWidth, drop = 0f, color = asphalt }
+            };
+        }
+
+        float shoulderOuter = halfRoadWidth + shoulderWidth;
+        float ditchBottom = shoulderOuter + (ditchWidth * 0.5f);
+        float ditchOuter = shoulderOuter + ditchWidth;
+
+        return new[]
+        {
+            new ProfilePoint { lateral = -ditchOuter, drop = shoulderDrop, color = dirt },
+            new ProfilePoint { lateral = -ditchBottom, drop = shoulderDrop + ditchDepth, color = dirt },
+            new ProfilePoint { lateral = -shoulderOuter, drop = shoulderDrop, color = dirt },
+            new ProfilePoint { lateral = -halfRoadWidth, drop = 0f, color = asphalt },
+            new ProfilePoint { lateral = halfRoadWidth, drop = 0f, color = asphalt },
+            new ProfilePoint { lateral = shoulderOuter, drop = shoulderDrop, color = dirt },
+            new ProfilePoint { lateral = ditchBottom, drop = shoulderDrop + ditchDepth, color = dirt },
+            new ProfilePoint { lateral = ditchOuter, drop = shoulderDrop, color = dirt }
+        };
+    }
+
+    private Vector2[] BuildProfileNormals(ProfilePoint[] profile)
+    {
+        int count = profile.Length;
+        Vector2[] normals = new Vector2[count];
+        if (count == 0)
+        {
+            return normals;
+        }
+
+        for (int i = 0; i < count; i++)
+        {
+            int prev = Mathf.Max(0, i - 1);
+            int next = Mathf.Min(count - 1, i + 1);
+            float dx = profile[next].lateral - profile[prev].lateral;
+            float dy = profile[next].drop - profile[prev].drop;
+            float slope = Mathf.Abs(dx) > 0.0001f ? dy / dx : 0f;
+
+            // Local 2D normal in (right, up) space for cross-section slope.
+            Vector2 n = new Vector2(slope, 1f).normalized;
+            normals[i] = n;
+        }
+
+        return normals;
     }
 
     private void EnsureSamplesUpToIndex(int targetIndex)

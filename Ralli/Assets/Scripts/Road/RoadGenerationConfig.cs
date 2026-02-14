@@ -26,6 +26,14 @@ public class RoadGenerationConfig : ScriptableObject
     public float roadWidth = 8f;
     [Tooltip("Road mesh thickness in meters.")]
     public float roadThickness = 0.35f;
+    [Tooltip("Shoulder width on each side (dirt band) in meters.")]
+    public float shoulderWidth = 1.2f;
+    [Tooltip("Shoulder vertical drop from asphalt in meters.")]
+    public float shoulderDrop = 0.05f;
+    [Tooltip("Ditch width on each side beyond shoulder in meters.")]
+    public float ditchWidth = 2.0f;
+    [Tooltip("Ditch depth below shoulder level in meters.")]
+    public float ditchDepth = 0.55f;
     [Tooltip("Max heading change rate in deg/m.")]
     public float maxTurnRateDegPerMeter = 0.22f;
     [Tooltip("How quickly turn rate moves toward piece target (0..1 per sample).")]

@@ -21,6 +21,10 @@ MonoBehaviour:
   chunksBehind: 2
   roadWidth: 16
   roadThickness: 0.35
+  shoulderWidth: 1.2
+  shoulderDrop: 0.05
+  ditchWidth: 2
+  ditchDepth: 0.55
   maxTurnRateDegPerMeter: 0.3
   turnRateResponse: 0.08
   enableHills: 1
