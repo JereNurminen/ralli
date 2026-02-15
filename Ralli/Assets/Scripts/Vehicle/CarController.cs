@@ -4,6 +4,8 @@ using UnityEngine;
 [RequireComponent(typeof(CarInputReader))]
 public class CarController : MonoBehaviour
 {
+    private const float MpsToKph = 3.6f;
+
     public struct WheelVisualState
     {
         public Vector3 AnchorPosition;
@@ -76,10 +78,17 @@ public class CarController : MonoBehaviour
     private int groundedWheels;
     private int groundedFrontWheels;
     private float currentSteerFactor = 1f;
+    private int currentFakeGear;
+    private float currentFakeRpm01;
+    private float shiftPauseTimer;
+    private float baseDriveForceNow;
+    private float baseEngineBrakingForceNow;
 
     public float SpeedMps => rb == null ? 0f : rb.linearVelocity.magnitude;
     public float SteerAngleDegrees => steerAngle;
     public float CurrentSteerFactor => currentSteerFactor;
+    public int CurrentFakeGear => currentFakeGear + 1;
+    public float FakeRpm01 => currentFakeRpm01;
     public int GroundedWheelCount => groundedWheels;
     public bool IsGrounded => groundedWheels > 0;
     public int WheelCount => 4;
@@ -146,6 +155,7 @@ public class CarController : MonoBehaviour
         float frontGroundFactor = Mathf.Clamp01(frontGroundedCountNow / 2f);
         float steerAuthority = Mathf.Lerp(handling.steerWhenFrontAirborne, 1f, frontGroundFactor);
         steerAngle *= steerAuthority;
+        UpdateDriveState();
 
         SimulateWheel(frontLeft);
         SimulateWheel(frontRight);
@@ -165,13 +175,13 @@ public class CarController : MonoBehaviour
 
     private float EvaluateSteerFactor()
     {
-        if (handling.steerFadeSpeed <= 0.01f)
+        if (handling.steerFadeSpeedKph <= 0.01f)
         {
             return 1f;
         }
 
-        float speed = Mathf.Abs(Vector3.Dot(rb.linearVelocity, transform.forward));
-        float t = Mathf.Clamp01(speed / handling.steerFadeSpeed);
+        float speedKph = Mathf.Abs(Vector3.Dot(rb.linearVelocity, transform.forward)) * MpsToKph;
+        float t = Mathf.Clamp01(speedKph / handling.steerFadeSpeedKph);
         return Mathf.Lerp(1f, handling.highSpeedSteerFactor, t);
     }
 
@@ -258,9 +268,11 @@ public class CarController : MonoBehaviour
         float lateralForce = -lateralSpeed * lateralGrip * rb.mass;
 
         float driveForce = 0f;
+        float engineBrakingForce = 0f;
         if (wheel.axle == Axle.Rear)
         {
-            driveForce = driveInput * handling.maxDriveForce * handling.rearDriveBias * 0.5f;
+            driveForce = driveInput * baseDriveForceNow * handling.rearDriveBias * 0.5f;
+            engineBrakingForce = baseEngineBrakingForceNow * handling.rearDriveBias * 0.5f;
             if (rearGroundedCount == 1)
             {
                 driveForce *= handling.rearDriveWhenSingleRearWheelGrounded;
@@ -272,13 +284,18 @@ public class CarController : MonoBehaviour
         }
         else
         {
-            driveForce = driveInput * handling.maxDriveForce * (1f - handling.rearDriveBias) * 0.5f;
+            driveForce = driveInput * baseDriveForceNow * (1f - handling.rearDriveBias) * 0.5f;
+            engineBrakingForce = baseEngineBrakingForceNow * (1f - handling.rearDriveBias) * 0.5f;
         }
 
         float handbrakeAxleBias = wheel.axle == Axle.Rear ? handling.handbrakeRearBias : (1f - handling.handbrakeRearBias);
         float handbrakeForce = handbrakeInput * handling.handbrakeForce * handbrakeAxleBias;
         float brakeForce = brakeInput * handling.maxBrakeForce + handbrakeForce;
         float longitudinalForce = driveForce - Mathf.Sign(forwardSpeed) * brakeForce;
+        if (Mathf.Abs(forwardSpeed) > 0.1f && driveInput <= 0.01f && brakeInput <= 0.01f && handbrakeInput <= 0.01f)
+        {
+            longitudinalForce -= Mathf.Sign(forwardSpeed) * engineBrakingForce;
+        }
 
         Vector2 tireForce = new Vector2(lateralForce, longitudinalForce);
         float maxTireForce = wheel.springForce * handling.tireFriction;
@@ -363,6 +380,93 @@ public class CarController : MonoBehaviour
         Vector3 dragDirection = -velocity.normalized;
         float resistance = handling.rollingResistance + handling.aerodynamicDrag * speed * speed;
         rb.AddForce(dragDirection * resistance, ForceMode.Force);
+    }
+
+    private void UpdateDriveState()
+    {
+        float speedKph = Mathf.Abs(Vector3.Dot(rb.linearVelocity, transform.forward)) * MpsToKph;
+        float topSpeedKph = Mathf.Max(1f, handling.fakeGearTopSpeedKph);
+        float normalizedSpeed = Mathf.Clamp01(speedKph / topSpeedKph);
+
+        int gearCount = Mathf.Max(1, handling.fakeGearCount);
+        int gearIndex = GetGearIndex(normalizedSpeed, gearCount, handling.fakeGearThresholds01);
+        float rpm01 = GetGearBandProgress(normalizedSpeed, gearIndex, gearCount, handling.fakeGearThresholds01);
+
+        if (gearIndex != currentFakeGear)
+        {
+            currentFakeGear = gearIndex;
+            shiftPauseTimer = Mathf.Max(0.01f, handling.shiftPauseDuration);
+        }
+
+        currentFakeRpm01 = rpm01;
+        if (shiftPauseTimer > 0f)
+        {
+            shiftPauseTimer = Mathf.Max(0f, shiftPauseTimer - Time.fixedDeltaTime);
+        }
+
+        float curveMultiplier = 1f;
+        if (handling.baseDriveForceBySpeedKph != null)
+        {
+            curveMultiplier = Mathf.Max(0f, handling.baseDriveForceBySpeedKph.Evaluate(speedKph));
+        }
+
+        // Per-gear S-curve taper: strongest after shift, softer near redline.
+        float gearShape = Mathf.SmoothStep(1.12f, 0.82f, rpm01);
+        float shiftMultiplier = 1f;
+        if (shiftPauseTimer > 0f && handling.shiftPauseDuration > 0f)
+        {
+            float shiftT = 1f - (shiftPauseTimer / handling.shiftPauseDuration);
+            float dip = Mathf.Clamp01(handling.shiftTorqueDip);
+            shiftMultiplier = Mathf.Lerp(1f - dip, 1f, shiftT);
+        }
+
+        baseDriveForceNow = handling.maxDriveForce * curveMultiplier * gearShape * shiftMultiplier;
+        baseEngineBrakingForceNow = handling.maxDriveForce * Mathf.Clamp01(handling.engineBrakingStrength) * rpm01;
+    }
+
+    private static int GetGearIndex(float normalizedSpeed, int gearCount, float[] thresholds01)
+    {
+        if (gearCount <= 1)
+        {
+            return 0;
+        }
+
+        for (int i = 0; i < gearCount - 1; i++)
+        {
+            float threshold = GetThreshold(i, gearCount, thresholds01);
+            if (normalizedSpeed < threshold)
+            {
+                return i;
+            }
+        }
+
+        return gearCount - 1;
+    }
+
+    private static float GetGearBandProgress(float normalizedSpeed, int gearIndex, int gearCount, float[] thresholds01)
+    {
+        if (gearCount <= 1)
+        {
+            return Mathf.Clamp01(normalizedSpeed);
+        }
+
+        float bandStart = gearIndex <= 0 ? 0f : GetThreshold(gearIndex - 1, gearCount, thresholds01);
+        float bandEnd = gearIndex >= gearCount - 1 ? 1f : GetThreshold(gearIndex, gearCount, thresholds01);
+        float bandLength = Mathf.Max(0.0001f, bandEnd - bandStart);
+        return Mathf.Clamp01((normalizedSpeed - bandStart) / bandLength);
+    }
+
+    private static float GetThreshold(int index, int gearCount, float[] thresholds01)
+    {
+        if (thresholds01 == null || thresholds01.Length < gearCount - 1)
+        {
+            return (index + 1) / (float)gearCount;
+        }
+
+        float minAllowed = index <= 0 ? 0f : Mathf.Clamp01(thresholds01[index - 1]);
+        float maxAllowed = index >= thresholds01.Length - 1 ? 1f : Mathf.Clamp01(thresholds01[index + 1]);
+        float threshold = Mathf.Clamp01(thresholds01[index]);
+        return Mathf.Clamp(threshold, minAllowed, maxAllowed);
     }
 
     private void ApplyAngularDamping()

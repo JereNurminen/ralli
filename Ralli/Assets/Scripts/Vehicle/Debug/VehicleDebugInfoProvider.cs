@@ -27,6 +27,8 @@ public class VehicleDebugInfoProvider : MonoBehaviour, IDebugInfoProvider
         builder.AddFloat("Speed (km/h)", carController.SpeedMps * 3.6f);
         builder.AddFloat("Steer Angle (deg)", carController.SteerAngleDegrees);
         builder.AddFloat("Steer Factor", carController.CurrentSteerFactor);
+        builder.AddInt("Fake Gear", carController.CurrentFakeGear);
+        builder.AddFloat("Fake RPM", carController.FakeRpm01);
         builder.AddInt("Grounded Wheels", carController.GroundedWheelCount);
         builder.AddBool("Grounded", carController.IsGrounded);
 

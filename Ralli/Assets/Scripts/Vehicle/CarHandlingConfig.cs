@@ -8,8 +8,8 @@ public class CarHandlingConfig : ScriptableObject
     [Range(0f, 45f)] public float maxSteerAngle = 30f;
     [Tooltip("How quickly steering moves toward target input.")]
     public float steerResponse = 8f;
-    [Tooltip("Forward speed (m/s) where high-speed steering reduction is fully applied.")]
-    public float steerFadeSpeed = 45f;
+    [Tooltip("Forward speed (km/h) where high-speed steering reduction is fully applied.")]
+    public float steerFadeSpeedKph = 162f;
     [Tooltip("Steering fraction kept at high speed. Lower = calmer at speed.")]
     [Range(0.2f, 1f)] public float highSpeedSteerFactor = 0.6f;
 
@@ -58,6 +58,26 @@ public class CarHandlingConfig : ScriptableObject
     [Range(0f, 1f)] public float rearDriveWhenSingleRearWheelGrounded = 0.35f;
     [Tooltip("Rear suspension force multiplier when exactly one rear wheel is grounded.")]
     [Range(0f, 1f)] public float rearSpringForceWhenSingleRearWheelGrounded = 0.6f;
+    [Tooltip("Top speed (km/h) used to normalize fake-gear banding.")]
+    public float fakeGearTopSpeedKph = 198f;
+    [Tooltip("Speed (km/h) -> normalized drive force multiplier.")]
+    public AnimationCurve baseDriveForceBySpeedKph = new AnimationCurve(
+        new Keyframe(0f, 1f),
+        new Keyframe(72f, 1f),
+        new Keyframe(126f, 0.82f),
+        new Keyframe(198f, 0.58f),
+        new Keyframe(270f, 0.35f)
+    );
+    [Tooltip("Number of fake gears used for drive force modulation.")]
+    [Range(1, 8)] public int fakeGearCount = 5;
+    [Tooltip("Optional normalized thresholds (0..1) between gear bands. Leave empty for even spacing.")]
+    public float[] fakeGearThresholds01;
+    [Tooltip("Torque reduction fraction during fake shifts.")]
+    [Range(0f, 1f)] public float shiftTorqueDip = 0.75f;
+    [Tooltip("Fake shift pause duration in seconds.")]
+    [Range(0.01f, 0.2f)] public float shiftPauseDuration = 0.08f;
+    [Tooltip("Engine braking strength as fraction of max drive force.")]
+    [Range(0f, 1f)] public float engineBrakingStrength = 0.2f;
 
     [Header("Coasting")]
     [Tooltip("Base rolling slowdown when no throttle/brake is applied.")]

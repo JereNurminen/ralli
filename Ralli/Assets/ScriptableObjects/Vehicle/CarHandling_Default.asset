@@ -11,10 +11,10 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: ab9000973f2a84faba23786e57913933, type: 3}
   m_Name: CarHandling_Default
-  m_EditorClassIdentifier: 
+  m_EditorClassIdentifier:
   maxSteerAngle: 45
   steerResponse: 8
-  steerFadeSpeed: 45
+  steerFadeSpeedKph: 162
   highSpeedSteerFactor: 1
   wheelRadius: 0.35
   suspensionRestLength: 0.5
@@ -29,15 +29,72 @@ MonoBehaviour:
   rearGripWhileHandbrake: 0.1
   rearGripWhenSingleRearWheelGrounded: 0.4
   rearTireForceCapWhenSingleRearWheelGrounded: 0.4
-  rearDriveBias: 0.9
-  maxDriveForce: 7000
+  rearDriveBias: 0.95
+  maxDriveForce: 8500
   maxBrakeForce: 14000
   handbrakeForce: 18033
   handbrakeRearBias: 0.813
   rearDriveWhenSingleRearWheelGrounded: 0.35
   rearSpringForceWhenSingleRearWheelGrounded: 0.6
-  rollingResistance: 180
-  aerodynamicDrag: 1.35
+  fakeGearTopSpeedKph: 198
+  baseDriveForceBySpeedKph:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 81
+      value: 0.970871
+      inSlope: -0.0034699882
+      outSlope: -0.0034699882
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.5694444
+      outWeight: 0
+    - serializedVersion: 3
+      time: 126
+      value: 0.82
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 198
+      value: 0.58
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 270
+      value: 0.35
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  fakeGearCount: 6
+  fakeGearThresholds01: []
+  shiftTorqueDip: 0.75
+  shiftPauseDuration: 0.08
+  engineBrakingStrength: 0.342
+  rollingResistance: 150
+  aerodynamicDrag: 1.15
   centerOfMassYOffset: -0.6
   yawDamping: 2.2
   rollDamping: 1.4

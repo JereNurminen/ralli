@@ -388,6 +388,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   target: {fileID: 0}
   offset: {x: 0, y: 4, z: -8}
+  nearDistanceScale: 0.65
+  farDistanceScale: 1.25
+  speedForMaxDistance: 36
+  speedResponse: 6
   positionLerp: 8
   rotationLerp: 10
   collisionMask:
@@ -395,7 +399,11 @@ MonoBehaviour:
     m_Bits: 4294967295
   cameraRadius: 0.3
   minimumGroundClearance: 1
-  lookAheadDistance: 7
+  nearLookAheadDistance: 4.5
+  farLookAheadDistance: 11
+  nearFieldOfView: 60
+  farFieldOfView: 76
+  fovLerp: 6
 --- !u!1 &344891948
 GameObject:
   m_ObjectHideFlags: 0
@@ -873,8 +881,10 @@ MonoBehaviour:
   pineTreePrefabs:
   - {fileID: 919132149155446097, guid: 80aeb3648fbe24d45848ec36ebadaa03, type: 3}
   - {fileID: 919132149155446097, guid: d35f8b8008c6542679b4a6309b97c0ea, type: 3}
-  birchFallbackMaterial: {fileID: 0}
-  pineFallbackMaterial: {fileID: 0}
+  birchLeafFallbackMaterial: {fileID: 2100000, guid: df0a8ea8c062641cd9dc811e0c9bb80e, type: 2}
+  pineLeafFallbackMaterial: {fileID: 2100000, guid: 671aecdb4921445dc8cd990493816751, type: 2}
+  birchBarkFallbackMaterial: {fileID: 2100000, guid: fc34c52496af84173956f0024900d06a, type: 2}
+  pineBarkFallbackMaterial: {fileID: 2100000, guid: d2b97f5ff4551448991805ddb74a63e8, type: 2}
   generateOnStart: 1
 --- !u!4 &1239733282
 Transform:
