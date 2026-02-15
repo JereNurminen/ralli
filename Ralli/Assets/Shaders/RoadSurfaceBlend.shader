@@ -5,6 +5,7 @@ Shader "Ralli/RoadSurfaceBlend"
         _AsphaltColor("Asphalt Color", Color) = (0.13, 0.13, 0.14, 1)
         _ShoulderColor("Shoulder Color", Color) = (0.34, 0.28, 0.22, 1)
         _ForestColor("Forest Floor Color", Color) = (0.20, 0.34, 0.18, 1)
+        _BlendSharpness("Surface Blend Sharpness", Range(1, 16)) = 5
         _MinLighting("Min Lighting", Range(0, 1)) = 0.35
         _AsphaltNoiseScale("Asphalt Noise Scale", Float) = 0.5
         _AsphaltNoiseIntensity("Asphalt Noise Intensity", Range(0, 0.5)) = 0.12
@@ -52,6 +53,7 @@ Shader "Ralli/RoadSurfaceBlend"
             float4 _AsphaltColor;
             float4 _ShoulderColor;
             float4 _ForestColor;
+            float _BlendSharpness;
             float _MinLighting;
             float _AsphaltNoiseScale;
             float _AsphaltNoiseIntensity;
@@ -102,9 +104,10 @@ Shader "Ralli/RoadSurfaceBlend"
 
             half4 Frag(Varyings input) : SV_Target
             {
-                float asphaltWeight = saturate(input.color.r);
-                float dirtWeight = saturate(input.color.g);
-                float forestMask = saturate(input.color.b);
+                float sharpness = max(1.0, _BlendSharpness);
+                float asphaltWeight = pow(saturate(input.color.r), sharpness);
+                float dirtWeight = pow(saturate(input.color.g), sharpness);
+                float forestMask = pow(saturate(input.color.b), sharpness);
                 float forestWeight = dirtWeight * forestMask;
                 float shoulderWeight = dirtWeight * (1.0 - forestMask);
                 float weightSum = max(0.0001, asphaltWeight + shoulderWeight + forestWeight);

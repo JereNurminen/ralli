@@ -840,8 +840,8 @@ public class RoadStreamGenerator : MonoBehaviour
         if (leafFallback == null)
         {
             string leafPath = isBirch
-                ? "Assets/Materials/Trees/BirchFallback.mat"
-                : "Assets/Materials/Trees/PineFallback.mat";
+                ? "Assets/Materials/Trees/BirchStylizedLeaf.mat"
+                : "Assets/Materials/Trees/PineStylizedLeaf.mat";
             leafFallback = UnityEditor.AssetDatabase.LoadAssetAtPath<Material>(leafPath);
         }
 
