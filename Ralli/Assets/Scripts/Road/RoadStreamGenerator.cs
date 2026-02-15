@@ -84,6 +84,8 @@ public class RoadStreamGenerator : MonoBehaviour
     private bool currentDesignedPieceMirrored;
     private float proceduralDistanceSinceLastDesigned;
     private float cumulativeYawDeg;
+    private int lastActiveMinChunk;
+    private int lastActiveMaxChunk;
 
     private void Start()
     {
@@ -121,6 +123,8 @@ public class RoadStreamGenerator : MonoBehaviour
 
         int minChunk = playerChunk - Mathf.Max(0, config.chunksBehind);
         int maxChunk = playerChunk + Mathf.Max(1, config.chunksAhead);
+        lastActiveMinChunk = minChunk;
+        lastActiveMaxChunk = maxChunk;
 
         EnsureChunkRange(minChunk, maxChunk);
         CullChunksOutside(minChunk, maxChunk);
@@ -142,7 +146,85 @@ public class RoadStreamGenerator : MonoBehaviour
         EnsureInitialized();
 
         EnsureChunkRange(0, Mathf.Max(1, config.chunksAhead));
+        lastActiveMinChunk = 0;
+        lastActiveMaxChunk = Mathf.Max(1, config.chunksAhead);
         LogSmoothnessDiagnostics();
+    }
+
+    public bool TryGetActiveChunkRange(out int minChunk, out int maxChunk)
+    {
+        minChunk = lastActiveMinChunk;
+        maxChunk = lastActiveMaxChunk;
+        return config != null;
+    }
+
+    public bool TryGetChunkRangeS(int chunkIndex, out float startS, out float endS)
+    {
+        startS = 0f;
+        endS = 0f;
+        if (config == null || chunkIndex < 0)
+        {
+            return false;
+        }
+
+        ChunkLayout layout = GetChunkLayout(chunkIndex);
+        startS = layout.startS;
+        endS = layout.endS;
+        return endS > startS;
+    }
+
+    public bool TryGetRoadFrameAtS(float s, out Vector3 position, out Vector3 forward, out Vector3 right, out Vector3 up, out float turnRateDegPerMeter)
+    {
+        position = transform.position;
+        forward = transform.forward;
+        right = transform.right;
+        up = transform.up;
+        turnRateDegPerMeter = 0f;
+
+        if (config == null)
+        {
+            return false;
+        }
+
+        EnsureInitialized();
+        if (sampleDistance <= 0.0001f)
+        {
+            return false;
+        }
+
+        float clampedS = Mathf.Max(0f, s);
+        int baseIndex = Mathf.Max(0, Mathf.FloorToInt(clampedS / sampleDistance));
+        EnsureSamplesUpToIndex(baseIndex + 1);
+
+        int i0 = Mathf.Clamp(baseIndex, 0, samples.Count - 1);
+        int i1 = Mathf.Clamp(i0 + 1, 0, samples.Count - 1);
+        RoadSample a = samples[i0];
+        RoadSample b = samples[i1];
+
+        float segmentLength = Mathf.Max(0.0001f, b.s - a.s);
+        float t = Mathf.Clamp01((clampedS - a.s) / segmentLength);
+
+        position = Vector3.Lerp(a.position, b.position, t);
+        forward = Vector3.Slerp(a.tangent, b.tangent, t).normalized;
+        right = Vector3.Slerp(a.right, b.right, t).normalized;
+        up = Vector3.Slerp(a.up, b.up, t).normalized;
+        turnRateDegPerMeter = Mathf.Lerp(a.turnRateDegPerMeter, b.turnRateDegPerMeter, t);
+        return true;
+    }
+
+    public float GetRoadWidth()
+    {
+        return config != null ? Mathf.Max(0f, config.roadWidth) : 0f;
+    }
+
+    public int GetSeed()
+    {
+        return config != null ? config.seed : 0;
+    }
+
+    public int GetChunkIndexForS(float s)
+    {
+        return GetChunkIndexAtS(s);
     }
 
     private void EnsureChunkRange(int minChunk, int maxChunk)

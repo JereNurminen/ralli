@@ -20,7 +20,7 @@ Material:
   stringTagMap:
     RenderType: TransparentCutout
   disabledShaderPasses: []
-  m_LockedProperties:
+  m_LockedProperties: 
   m_SavedProperties:
     serializedVersion: 3
     m_TexEnvs:
@@ -34,16 +34,16 @@ Material:
         m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
-    - _BandSoftness: 0.35
+    - _BandSoftness: 0.6
     - _BlobNoiseScale: 0.22
     - _BlobNoiseStrength: 0.18
     - _BlobTiling: 4.8
     - _Cutoff: 0.42
     - _GradientMaxY: 12
     - _GradientMinY: 0.6
-    - _LightSteps: 3
+    - _LightSteps: 4
     - _MinLight: 0.32
-    - _ShadowStrength: 0.78
+    - _ShadowStrength: 0
     m_Colors:
     - _BottomColor: {r: 0.22, g: 0.43, b: 0.18, a: 1}
     - _TopColor: {r: 0.45, g: 0.72, b: 0.33, a: 1}
@@ -59,6 +59,6 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: d0353a89b1f911e48b9e16bdc9f2e058, type: 3}
-  m_Name:
-  m_EditorClassIdentifier:
+  m_Name: 
+  m_EditorClassIdentifier: 
   version: 9
