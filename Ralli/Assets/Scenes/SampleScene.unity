@@ -230,7 +230,7 @@ Transform:
   m_GameObject: {fileID: 326776995}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0.47222224, y: -0.30362117, z: 0.3888889}
+  m_LocalPosition: {x: 0.43406594, y: -0.24657534, z: 0.30952382}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -429,7 +429,7 @@ Transform:
   m_GameObject: {fileID: 344891948}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -0.47222224, y: -0.30362117, z: -0.3888889}
+  m_LocalPosition: {x: -0.43406594, y: -0.24657534, z: -0.30952382}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -667,7 +667,7 @@ Transform:
   m_GameObject: {fileID: 632974769}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0.47222224, y: -0.30362117, z: -0.3888889}
+  m_LocalPosition: {x: 0.43406594, y: -0.24657534, z: -0.30952382}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -699,7 +699,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 0.5555556, y: 0.67471373, z: 0.2777778}
+  m_LocalScale: {x: 0.5494505, y: 0.6849315, z: 0.23809525}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 1213651512}
@@ -853,6 +853,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1239733282}
   - component: {fileID: 1239733281}
+  - component: {fileID: 1239733283}
   m_Layer: 0
   m_Name: RoadStream
   m_TagString: Untagged
@@ -901,6 +902,21 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1239733283
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1239733280}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1e625ae402cd24598b3bb0d80af0cd6d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  roadStream: {fileID: 0}
+  config: {fileID: 11400000, guid: c01a473e82aa84b9ba307985e1842ee9, type: 2}
+  vehicleRoot: {fileID: 0}
 --- !u!1 &1274618079
 GameObject:
   m_ObjectHideFlags: 0
@@ -926,7 +942,7 @@ Transform:
   m_GameObject: {fileID: 1274618079}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -0.47222224, y: -0.30362117, z: 0.3888889}
+  m_LocalPosition: {x: -0.43406594, y: -0.24657534, z: 0.30952382}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -1245,7 +1261,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 2.22, z: 5}
-  m_LocalScale: {x: 1.8, y: 1.48211, z: 3.6}
+  m_LocalScale: {x: 1.82, y: 1.46, z: 4.2}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 1274618080}

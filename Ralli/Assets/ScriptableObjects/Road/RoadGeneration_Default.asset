@@ -11,7 +11,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 8cd6be16483d2497d843fc0a519aa643, type: 3}
   m_Name: RoadGeneration_Default
-  m_EditorClassIdentifier: 
+  m_EditorClassIdentifier:
   seed: 1337
   chunkLength: 140
   minChunkLength: 100
@@ -19,14 +19,14 @@ MonoBehaviour:
   samplesPerChunk: 80
   chunksAhead: 8
   chunksBehind: 2
-  roadWidth: 16
+  roadWidth: 9.6
   roadThickness: 0.35
-  shoulderWidth: 1.2
+  shoulderWidth: 0.825
   shoulderDrop: 0.05
-  ditchWidth: 4
-  ditchDepth: 1.25
-  ditchBottomFlatWidth: 1
-  collidableForestWidth: 10
+  ditchWidth: 2.7
+  ditchDepth: 0.65
+  ditchBottomFlatWidth: 0.75
+  collidableForestWidth: 15
   dropSkirtDepth: 3
   forestFloorYOffset: -0.5
   spawnForestTrees: 1

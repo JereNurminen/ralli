@@ -495,10 +495,11 @@ public class CarController : MonoBehaviour
 
     private void EnsureWheelAnchors()
     {
-        EnsureAnchor(frontLeft, new Vector3(-0.85f, -0.45f, 1.4f));
-        EnsureAnchor(frontRight, new Vector3(0.85f, -0.45f, 1.4f));
-        EnsureAnchor(rearLeft, new Vector3(-0.85f, -0.45f, -1.4f));
-        EnsureAnchor(rearRight, new Vector3(0.85f, -0.45f, -1.4f));
+        // Approximate hot-hatch footprint: ~1.58m track, ~2.60m wheelbase.
+        EnsureAnchor(frontLeft, new Vector3(-0.79f, -0.36f, 1.30f));
+        EnsureAnchor(frontRight, new Vector3(0.79f, -0.36f, 1.30f));
+        EnsureAnchor(rearLeft, new Vector3(-0.79f, -0.36f, -1.30f));
+        EnsureAnchor(rearRight, new Vector3(0.79f, -0.36f, -1.30f));
     }
 
     private void EnsureAnchor(Wheel wheel, Vector3 localPosition)
