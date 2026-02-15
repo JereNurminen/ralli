@@ -6,6 +6,16 @@ Shader "Ralli/RoadSurfaceBlend"
         _ShoulderColor("Shoulder Color", Color) = (0.34, 0.28, 0.22, 1)
         _ForestColor("Forest Floor Color", Color) = (0.20, 0.34, 0.18, 1)
         _BlendSharpness("Surface Blend Sharpness", Range(1, 16)) = 5
+        _RoadHalfWidth("Road Half Width (m)", Float) = 4
+        _MarkingColor("Marking Color", Color) = (0.93, 0.93, 0.9, 1)
+        _CenterLineWidth("Center Line Width (m)", Float) = 0.12
+        _CenterDashLength("Center Dash Length (m)", Float) = 3.0
+        _CenterGapLength("Center Gap Length (m)", Float) = 9.0
+        _EdgeLineWidth("Edge Line Width (m)", Float) = 0.11
+        _EdgeLineInset("Edge Line Inset (m)", Float) = 0.22
+        _MarkingFeather("Marking Feather (m)", Float) = 0.03
+        _MarkingWearScale("Marking Wear Scale", Float) = 0.18
+        _MarkingWearStrength("Marking Wear Strength", Range(0, 1)) = 0.22
         _MinLighting("Min Lighting", Range(0, 1)) = 0.35
         _AsphaltNoiseScale("Asphalt Noise Scale", Float) = 0.5
         _AsphaltNoiseIntensity("Asphalt Noise Intensity", Range(0, 0.5)) = 0.12
@@ -39,6 +49,7 @@ Shader "Ralli/RoadSurfaceBlend"
                 float4 positionOS : POSITION;
                 float3 normalOS : NORMAL;
                 float4 color : COLOR;
+                float2 uv : TEXCOORD0;
             };
 
             struct Varyings
@@ -47,6 +58,7 @@ Shader "Ralli/RoadSurfaceBlend"
                 float3 normalWS : TEXCOORD0;
                 float4 color : TEXCOORD1;
                 float3 positionWS : TEXCOORD2;
+                float2 uv : TEXCOORD3;
             };
 
             CBUFFER_START(UnityPerMaterial)
@@ -54,6 +66,16 @@ Shader "Ralli/RoadSurfaceBlend"
             float4 _ShoulderColor;
             float4 _ForestColor;
             float _BlendSharpness;
+            float _RoadHalfWidth;
+            float4 _MarkingColor;
+            float _CenterLineWidth;
+            float _CenterDashLength;
+            float _CenterGapLength;
+            float _EdgeLineWidth;
+            float _EdgeLineInset;
+            float _MarkingFeather;
+            float _MarkingWearScale;
+            float _MarkingWearStrength;
             float _MinLighting;
             float _AsphaltNoiseScale;
             float _AsphaltNoiseIntensity;
@@ -99,6 +121,7 @@ Shader "Ralli/RoadSurfaceBlend"
                 output.normalWS = TransformObjectToWorldNormal(input.normalOS);
                 output.color = input.color;
                 output.positionWS = TransformObjectToWorld(input.positionOS.xyz);
+                output.uv = input.uv;
                 return output;
             }
 
@@ -128,6 +151,33 @@ Shader "Ralli/RoadSurfaceBlend"
                 half3 baseColor = asphaltCol * asphaltWeight
                                 + shoulderCol * shoulderWeight
                                 + _ForestColor.rgb * forestWeight;
+
+                // Procedural Finnish-style markings in road-local meters:
+                // uv.x = lateral offset from centerline, uv.y = distance along road.
+                float lateral = input.uv.x;
+                float along = input.uv.y;
+                float feather = max(0.001, _MarkingFeather);
+
+                float centerLineHalf = max(0.02, _CenterLineWidth * 0.5);
+                float centerDistance = abs(lateral);
+                float centerBand = 1.0 - smoothstep(centerLineHalf - feather, centerLineHalf + feather, centerDistance);
+                float dashLen = max(0.1, _CenterDashLength);
+                float gapLen = max(0.1, _CenterGapLength);
+                float dashPeriod = dashLen + gapLen;
+                float dashT = frac(along / dashPeriod);
+                float centerDashed = centerBand * step(dashT, dashLen / dashPeriod);
+
+                float edgeHalf = max(0.02, _EdgeLineWidth * 0.5);
+                float edgeCenter = max(0.0, _RoadHalfWidth - max(0.0, _EdgeLineInset) - edgeHalf);
+                float edgeDistance = abs(abs(lateral) - edgeCenter);
+                float edgeSolid = 1.0 - smoothstep(edgeHalf - feather, edgeHalf + feather, edgeDistance);
+
+                // Keep markings constrained to asphalt-dominant area and add slight wear.
+                float asphaltMask = saturate((asphaltWeight - 0.55) * 3.0);
+                float wear = saturate(0.5 + 0.5 * noise2oct(input.positionWS.xz * _MarkingWearScale + 77.0));
+                float wearMask = lerp(1.0, wear, saturate(_MarkingWearStrength));
+                float markingMask = max(centerDashed, edgeSolid) * asphaltMask * wearMask;
+                baseColor = lerp(baseColor, _MarkingColor.rgb, markingMask);
 
                 float3 normalWS = normalize(input.normalWS);
                 Light mainLight = GetMainLight();

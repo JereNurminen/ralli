@@ -177,6 +177,10 @@ public class RoadStreamGenerator : MonoBehaviour
         if (roadMaterial != null)
         {
             meshRenderer.sharedMaterial = roadMaterial;
+            if (roadMaterial.HasProperty("_RoadHalfWidth"))
+            {
+                roadMaterial.SetFloat("_RoadHalfWidth", config.roadWidth * 0.5f);
+            }
         }
 
         Mesh visualMesh = BuildChunkVisualMesh(chunkIndex, startSampleIndex, endSampleIndex);
@@ -221,7 +225,6 @@ public class RoadStreamGenerator : MonoBehaviour
         {
             RoadSample sample = samples[usableStart + i];
             int rowBase = i * stride;
-            float vCoord = sample.s * 0.1f;
 
             for (int j = 0; j < profileCount; j++)
             {
@@ -229,7 +232,10 @@ public class RoadStreamGenerator : MonoBehaviour
                 float adjustedLateral = AdjustLateralForCurvature(point.lateral, sample.turnRateDegPerMeter);
                 Vector3 top = sample.position + sample.right * adjustedLateral - sample.up * point.drop;
                 Vector3 bottom = top - sample.up * thickness;
-                float u = profileCount <= 1 ? 0f : j / (float)(profileCount - 1);
+                // Encode road-space UVs for procedural markings:
+                // x = lateral offset from centerline (meters), y = distance along road (meters).
+                float u = adjustedLateral;
+                float v = sample.s;
 
                 int topIndex = rowBase + j;
                 int bottomIndex = rowBase + profileCount + j;
@@ -241,8 +247,8 @@ public class RoadStreamGenerator : MonoBehaviour
                 normals[bottomIndex] = -topNormal;
                 colors[topIndex] = point.color;
                 colors[bottomIndex] = point.color;
-                uv[topIndex] = new Vector2(u, vCoord);
-                uv[bottomIndex] = new Vector2(u, vCoord);
+                uv[topIndex] = new Vector2(u, v);
+                uv[bottomIndex] = new Vector2(u, v);
             }
         }
 
