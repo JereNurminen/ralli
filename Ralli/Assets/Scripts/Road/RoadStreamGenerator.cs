@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -24,6 +25,14 @@ public class RoadStreamGenerator : MonoBehaviour
         public GameObject gameObject;
     }
 
+    private struct ForestTriangle
+    {
+        public Vector3 a;
+        public Vector3 b;
+        public Vector3 c;
+        public float cumulativeArea;
+    }
+
     private class ChunkLayout
     {
         public int chunkIndex;
@@ -46,6 +55,12 @@ public class RoadStreamGenerator : MonoBehaviour
     [SerializeField] private RoadGenerationConfig config;
     [SerializeField] private Transform target;
     [SerializeField] private Material roadMaterial;
+    [SerializeField] private GameObject[] birchTreePrefabs;
+    [SerializeField] private GameObject[] pineTreePrefabs;
+    [SerializeField] private Material birchLeafFallbackMaterial;
+    [SerializeField] private Material pineLeafFallbackMaterial;
+    [SerializeField] private Material birchBarkFallbackMaterial;
+    [SerializeField] private Material pineBarkFallbackMaterial;
 
     [Header("Runtime")]
     [SerializeField] private bool generateOnStart = true;
@@ -53,6 +68,7 @@ public class RoadStreamGenerator : MonoBehaviour
     private readonly List<RoadSample> samples = new List<RoadSample>(4096);
     private readonly Dictionary<int, ChunkData> chunks = new Dictionary<int, ChunkData>();
     private readonly List<ChunkLayout> chunkLayouts = new List<ChunkLayout>(256);
+    private readonly Dictionary<int, List<Vector2>> chunkTreePositions = new Dictionary<int, List<Vector2>>();
 
     private enum PieceType { Straight, Curve, Designed }
 
@@ -167,6 +183,7 @@ public class RoadStreamGenerator : MonoBehaviour
         Mesh colliderMesh = BuildChunkColliderMesh(chunkIndex, startSampleIndex, endSampleIndex);
         meshFilter.sharedMesh = visualMesh;
         meshCollider.sharedMesh = colliderMesh;
+        SpawnTreesForChunk(chunkIndex, chunkObject, visualMesh, startSampleIndex, endSampleIndex);
 
         ChunkData chunk = new ChunkData
         {
@@ -516,7 +533,8 @@ public class RoadStreamGenerator : MonoBehaviour
         // Beyond the safe zone, compress toward safeZone based on curvature.
         // The inner profile must not extend past ~half the radius, because on a
         // hairpin the returning road occupies the space beyond that.
-        float maxExtent = Mathf.Max(0f, radius * 0.4f - safeZone);
+        float radiusFactor = Mathf.Clamp(config.innerProfileCompressionRadiusFactor, 0.4f, 0.95f);
+        float maxExtent = Mathf.Max(0f, radius * radiusFactor - safeZone);
         float requested = insideLateral - safeZone;
 
         float compressed;
@@ -531,6 +549,406 @@ public class RoadStreamGenerator : MonoBehaviour
         }
 
         return (safeZone + compressed) * insideSign;
+    }
+
+    private void SpawnTreesForChunk(int chunkIndex, GameObject chunkObject, Mesh visualMesh, int startSampleIndex, int endSampleIndex)
+    {
+        if (config == null || !config.spawnForestTrees || chunkObject == null || visualMesh == null)
+        {
+            return;
+        }
+
+        int treesPerChunk = Mathf.Max(0, config.forestTreesPerChunk);
+        if (treesPerChunk <= 0)
+        {
+            return;
+        }
+
+        float safeRadius = Mathf.Max(0f, config.treeTrunkSafeRadius);
+        int attempts = Mathf.Max(treesPerChunk, treesPerChunk * Mathf.Max(1, config.treeSpawnAttemptsMultiplier));
+
+        List<ForestTriangle> forestTriangles = BuildForestTriangles(visualMesh);
+        if (forestTriangles.Count == 0)
+        {
+            if (chunkIndex == 0)
+            {
+                Debug.LogWarning("[RoadStream] No eligible forest-floor triangles found for tree spawning in chunk 0.");
+            }
+            return;
+        }
+
+        var rng = new System.Random((config.seed * 73856093) ^ (chunkIndex * 19349663));
+        var localTreePositions = new List<Vector2>(treesPerChunk);
+
+        for (int attempt = 0; attempt < attempts && localTreePositions.Count < treesPerChunk; attempt++)
+        {
+            Vector3 spawnPoint;
+            if (!TrySamplePointOnForestFloor(forestTriangles, rng, out spawnPoint))
+            {
+                break;
+            }
+
+            Vector2 spawn2D = new Vector2(spawnPoint.x, spawnPoint.z);
+            if (safeRadius > 0.001f && (IsTreeTooClose(spawn2D, safeRadius) || IsTreeTooClose(localTreePositions, spawn2D, safeRadius)))
+            {
+                continue;
+            }
+
+            if (!IsPointFarEnoughFromDitch(spawnPoint, startSampleIndex, endSampleIndex))
+            {
+                continue;
+            }
+
+            GameObject prefab = SelectTreePrefab(rng, out bool isBirch);
+            if (prefab == null)
+            {
+                break;
+            }
+
+            Quaternion yaw = Quaternion.Euler(0f, (float)rng.NextDouble() * 360f, 0f);
+            Quaternion modelOffset = Quaternion.Euler(config.treeModelRotationOffsetEuler);
+            GameObject instance = Instantiate(prefab, spawnPoint, yaw * modelOffset, chunkObject.transform);
+            ResolveTreeFallbackMaterials(isBirch, out Material leafFallback, out Material barkFallback);
+            ApplyTreeFallbackMaterialsIfNeeded(instance, leafFallback, barkFallback);
+            AddTreeTrunkCollider(chunkObject.transform, spawnPoint, localTreePositions.Count);
+            localTreePositions.Add(spawn2D);
+        }
+
+        if (localTreePositions.Count > 0)
+        {
+            chunkTreePositions[chunkIndex] = localTreePositions;
+        }
+    }
+
+    private List<ForestTriangle> BuildForestTriangles(Mesh mesh)
+    {
+        var result = new List<ForestTriangle>(128);
+        Vector3[] vertices = mesh.vertices;
+        int[] triangles = mesh.triangles;
+        Color[] colors = mesh.colors;
+
+        if (vertices == null || triangles == null || colors == null || colors.Length != vertices.Length)
+        {
+            return result;
+        }
+
+        float cumulativeArea = 0f;
+        for (int i = 0; i <= triangles.Length - 3; i += 3)
+        {
+            int i0 = triangles[i];
+            int i1 = triangles[i + 1];
+            int i2 = triangles[i + 2];
+            if (i0 < 0 || i1 < 0 || i2 < 0 || i0 >= vertices.Length || i1 >= vertices.Length || i2 >= vertices.Length)
+            {
+                continue;
+            }
+
+            float avgBlue = (colors[i0].b + colors[i1].b + colors[i2].b) / 3f;
+            float avgRed = (colors[i0].r + colors[i1].r + colors[i2].r) / 3f;
+            // Forest band blends with dirt near ditch edge, so allow mixed B while excluding asphalt-heavy tris.
+            if (avgBlue < 0.15f || avgRed > 0.2f)
+            {
+                continue;
+            }
+
+            Vector3 a = vertices[i0];
+            Vector3 b = vertices[i1];
+            Vector3 c = vertices[i2];
+            Vector3 normal = Vector3.Cross(b - a, c - a);
+            float area = normal.magnitude * 0.5f;
+            if (area < 0.001f)
+            {
+                continue;
+            }
+
+            if (Vector3.Dot(normal.normalized, Vector3.up) < 0.3f)
+            {
+                continue;
+            }
+
+            cumulativeArea += area;
+            result.Add(new ForestTriangle
+            {
+                a = a,
+                b = b,
+                c = c,
+                cumulativeArea = cumulativeArea
+            });
+        }
+
+        return result;
+    }
+
+    private bool TrySamplePointOnForestFloor(List<ForestTriangle> forestTriangles, System.Random rng, out Vector3 point)
+    {
+        point = Vector3.zero;
+        if (forestTriangles == null || forestTriangles.Count == 0)
+        {
+            return false;
+        }
+
+        float totalArea = forestTriangles[forestTriangles.Count - 1].cumulativeArea;
+        if (totalArea <= 0f)
+        {
+            return false;
+        }
+
+        float targetArea = (float)rng.NextDouble() * totalArea;
+        int triangleIndex = 0;
+        while (triangleIndex < forestTriangles.Count - 1 && forestTriangles[triangleIndex].cumulativeArea < targetArea)
+        {
+            triangleIndex++;
+        }
+
+        ForestTriangle tri = forestTriangles[triangleIndex];
+        float r1 = Mathf.Sqrt((float)rng.NextDouble());
+        float r2 = (float)rng.NextDouble();
+        float u = 1f - r1;
+        float v = r1 * (1f - r2);
+        float w = r1 * r2;
+        point = tri.a * u + tri.b * v + tri.c * w;
+        return true;
+    }
+
+    private bool IsTreeTooClose(Vector2 position, float safeRadius)
+    {
+        float safeRadiusSq = safeRadius * safeRadius;
+        foreach (KeyValuePair<int, List<Vector2>> pair in chunkTreePositions)
+        {
+            List<Vector2> treePositions = pair.Value;
+            for (int i = 0; i < treePositions.Count; i++)
+            {
+                if ((treePositions[i] - position).sqrMagnitude < safeRadiusSq)
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private bool IsPointFarEnoughFromDitch(Vector3 point, int startSampleIndex, int endSampleIndex)
+    {
+        if (config == null || samples.Count == 0)
+        {
+            return true;
+        }
+
+        int start = Mathf.Clamp(startSampleIndex, 0, samples.Count - 1);
+        int end = Mathf.Clamp(endSampleIndex, start, samples.Count - 1);
+
+        int nearestIndex = start;
+        float nearestDistSq = float.MaxValue;
+        Vector2 point2D = new Vector2(point.x, point.z);
+        for (int i = start; i <= end; i++)
+        {
+            Vector3 samplePos = samples[i].position;
+            Vector2 sample2D = new Vector2(samplePos.x, samplePos.z);
+            float distSq = (sample2D - point2D).sqrMagnitude;
+            if (distSq < nearestDistSq)
+            {
+                nearestDistSq = distSq;
+                nearestIndex = i;
+            }
+        }
+
+        RoadSample nearestSample = samples[nearestIndex];
+        Vector3 delta = point - nearestSample.position;
+        float lateral = Mathf.Abs(Vector3.Dot(delta, nearestSample.right));
+        float ditchOuter = config.roadWidth * 0.5f + Mathf.Max(0f, config.shoulderWidth) + Mathf.Max(0f, config.ditchWidth);
+        float required = ditchOuter + Mathf.Max(0f, config.treeDitchClearance);
+        return lateral >= required;
+    }
+
+    private static bool IsTreeTooClose(List<Vector2> treePositions, Vector2 position, float safeRadius)
+    {
+        float safeRadiusSq = safeRadius * safeRadius;
+        for (int i = 0; i < treePositions.Count; i++)
+        {
+            if ((treePositions[i] - position).sqrMagnitude < safeRadiusSq)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private void AddTreeTrunkCollider(Transform parent, Vector3 worldPosition, int index)
+    {
+        if (config == null || parent == null)
+        {
+            return;
+        }
+
+        float width = Mathf.Max(0.1f, config.treeColliderWidth);
+        float height = Mathf.Max(0.5f, config.treeColliderHeight);
+
+        GameObject colliderObject = new GameObject($"TreeCollider_{index:000}");
+        colliderObject.transform.SetParent(parent, true);
+        colliderObject.transform.SetPositionAndRotation(worldPosition, Quaternion.identity);
+
+        BoxCollider box = colliderObject.AddComponent<BoxCollider>();
+        box.center = new Vector3(0f, height * 0.5f, 0f);
+        box.size = new Vector3(width, height, width);
+    }
+
+    private GameObject SelectTreePrefab(System.Random rng, out bool isBirch)
+    {
+        bool chooseBirch = rng.NextDouble() < Mathf.Clamp01(config.birchRatio);
+        isBirch = chooseBirch;
+        GameObject[] primary = chooseBirch ? birchTreePrefabs : pineTreePrefabs;
+        GameObject[] secondary = chooseBirch ? pineTreePrefabs : birchTreePrefabs;
+
+        GameObject prefab = ChooseRandomPrefab(primary, rng);
+        if (prefab != null)
+        {
+            return prefab;
+        }
+
+        isBirch = !chooseBirch;
+        return ChooseRandomPrefab(secondary, rng);
+    }
+
+    private static GameObject ChooseRandomPrefab(GameObject[] prefabs, System.Random rng)
+    {
+        if (prefabs == null || prefabs.Length == 0)
+        {
+            return null;
+        }
+
+        int start = rng.Next(0, prefabs.Length);
+        for (int i = 0; i < prefabs.Length; i++)
+        {
+            GameObject prefab = prefabs[(start + i) % prefabs.Length];
+            if (prefab != null)
+            {
+                return prefab;
+            }
+        }
+
+        return null;
+    }
+
+    private void ResolveTreeFallbackMaterials(bool isBirch, out Material leafFallback, out Material barkFallback)
+    {
+        leafFallback = isBirch ? birchLeafFallbackMaterial : pineLeafFallbackMaterial;
+        barkFallback = isBirch ? birchBarkFallbackMaterial : pineBarkFallbackMaterial;
+
+#if UNITY_EDITOR
+        if (leafFallback == null)
+        {
+            string leafPath = isBirch
+                ? "Assets/Materials/Trees/BirchFallback.mat"
+                : "Assets/Materials/Trees/PineFallback.mat";
+            leafFallback = UnityEditor.AssetDatabase.LoadAssetAtPath<Material>(leafPath);
+        }
+
+        if (barkFallback == null)
+        {
+            string barkPath = isBirch
+                ? "Assets/Materials/Trees/BirchBarkFallback.mat"
+                : "Assets/Materials/Trees/PineBarkFallback.mat";
+            barkFallback = UnityEditor.AssetDatabase.LoadAssetAtPath<Material>(barkPath);
+        }
+
+        if (isBirch)
+        {
+            if (leafFallback != null)
+            {
+                birchLeafFallbackMaterial = leafFallback;
+            }
+
+            if (barkFallback != null)
+            {
+                birchBarkFallbackMaterial = barkFallback;
+            }
+        }
+        else
+        {
+            if (leafFallback != null)
+            {
+                pineLeafFallbackMaterial = leafFallback;
+            }
+
+            if (barkFallback != null)
+            {
+                pineBarkFallbackMaterial = barkFallback;
+            }
+        }
+#endif
+    }
+
+    private static void ApplyTreeFallbackMaterialsIfNeeded(GameObject instance, Material leafFallbackMaterial, Material barkFallbackMaterial)
+    {
+        if (instance == null || leafFallbackMaterial == null)
+        {
+            return;
+        }
+
+        Renderer[] renderers = instance.GetComponentsInChildren<Renderer>(true);
+        for (int i = 0; i < renderers.Length; i++)
+        {
+            Material[] mats = renderers[i].sharedMaterials;
+            Material bark = barkFallbackMaterial != null ? barkFallbackMaterial : leafFallbackMaterial;
+            string rendererName = renderers[i].name ?? string.Empty;
+            if (mats == null || mats.Length == 0)
+            {
+                renderers[i].sharedMaterial = IsBarkHint(rendererName, string.Empty, 0, 1)
+                    ? bark
+                    : leafFallbackMaterial;
+                continue;
+            }
+
+            bool changed = false;
+            for (int j = 0; j < mats.Length; j++)
+            {
+                Material target = IsBarkHint(rendererName, mats[j] != null ? mats[j].name : string.Empty, j, mats.Length)
+                    ? bark
+                    : leafFallbackMaterial;
+                if (mats[j] != target)
+                {
+                    mats[j] = target;
+                    changed = true;
+                }
+            }
+
+            if (changed)
+            {
+                renderers[i].sharedMaterials = mats;
+            }
+        }
+    }
+
+    private static bool IsBarkHint(string rendererName, string materialName, int materialIndex, int materialCount)
+    {
+        string renderer = rendererName.ToLowerInvariant();
+        string material = materialName.ToLowerInvariant();
+
+        bool barkByName =
+            renderer.Contains("bark") || renderer.Contains("trunk") || renderer.Contains("stem") || renderer.Contains("wood") ||
+            material.Contains("bark") || material.Contains("trunk") || material.Contains("stem") || material.Contains("wood");
+        if (barkByName)
+        {
+            return true;
+        }
+
+        bool leafByName =
+            renderer.Contains("leaf") || renderer.Contains("leaves") || renderer.Contains("needle") || renderer.Contains("foliage") ||
+            material.Contains("leaf") || material.Contains("leaves") || material.Contains("needle") || material.Contains("foliage");
+        if (leafByName)
+        {
+            return false;
+        }
+
+        // Common tree import layout: slot 0 trunk, slot 1+ foliage.
+        if (materialCount > 1 && materialIndex == 0)
+        {
+            return true;
+        }
+
+        return false;
     }
 
     private void EnsureSamplesUpToIndex(int targetIndex)
@@ -1049,6 +1467,7 @@ public class RoadStreamGenerator : MonoBehaviour
             }
 
             chunks.Remove(key);
+            chunkTreePositions.Remove(key);
         }
 
         ListPool<int>.Release(toRemove);
@@ -1065,6 +1484,7 @@ public class RoadStreamGenerator : MonoBehaviour
         }
 
         chunks.Clear();
+        chunkTreePositions.Clear();
     }
 
     private void LogSmoothnessDiagnostics()

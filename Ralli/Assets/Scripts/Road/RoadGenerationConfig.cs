@@ -42,6 +42,27 @@ public class RoadGenerationConfig : ScriptableObject
     public float dropSkirtDepth = 3f;
     [Tooltip("Forest floor vertical offset from road centerline Y in meters (negative = lower).")]
     public float forestFloorYOffset = -0.05f;
+    [Header("Forest Trees")]
+    [Tooltip("Enable procedural tree spawning on the forest floor.")]
+    public bool spawnForestTrees = true;
+    [Tooltip("Target number of trees spawned per generated road chunk.")]
+    public int forestTreesPerChunk = 120;
+    [Tooltip("Birch-to-pine mix. 1 = all birch, 0 = all pine.")]
+    [Range(0f, 1f)] public float birchRatio = 0.65f;
+    [Tooltip("Minimum trunk spacing in meters between spawned trees.")]
+    public float treeTrunkSafeRadius = 1.4f;
+    [Tooltip("How many attempts to make per target tree count.")]
+    public int treeSpawnAttemptsMultiplier = 8;
+    [Tooltip("Extra lateral clearance from ditch outer edge before trees may spawn (meters).")]
+    public float treeDitchClearance = 1.5f;
+    [Tooltip("Trunk collider width/depth in meters.")]
+    public float treeColliderWidth = 0.6f;
+    [Tooltip("Trunk collider height in meters.")]
+    public float treeColliderHeight = 8f;
+    [Tooltip("Base rotation offset applied to tree models before random yaw.")]
+    public Vector3 treeModelRotationOffsetEuler = new Vector3(-90f, 0f, 0f);
+    [Tooltip("Inner edge compression cap as a fraction of curve radius (higher = less ditch pinching).")]
+    [Range(0.4f, 0.95f)] public float innerProfileCompressionRadiusFactor = 0.8f;
     [Tooltip("Max heading change rate in deg/m.")]
     public float maxTurnRateDegPerMeter = 0.22f;
     [Tooltip("How quickly turn rate moves toward piece target (0..1 per sample).")]

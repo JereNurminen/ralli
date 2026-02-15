@@ -11,7 +11,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 8cd6be16483d2497d843fc0a519aa643, type: 3}
   m_Name: RoadGeneration_Default
-  m_EditorClassIdentifier: 
+  m_EditorClassIdentifier:
   seed: 1337
   chunkLength: 140
   minChunkLength: 100
@@ -29,6 +29,16 @@ MonoBehaviour:
   collidableForestWidth: 10
   dropSkirtDepth: 3
   forestFloorYOffset: -0.5
+  spawnForestTrees: 1
+  forestTreesPerChunk: 120
+  birchRatio: 0.65
+  treeTrunkSafeRadius: 1.4
+  treeSpawnAttemptsMultiplier: 8
+  treeDitchClearance: 1.5
+  treeColliderWidth: 0.6
+  treeColliderHeight: 8
+  treeModelRotationOffsetEuler: {x: -90, y: 0, z: 0}
+  innerProfileCompressionRadiusFactor: 0.8
   maxTurnRateDegPerMeter: 1
   turnRateResponse: 0.2
   enableHills: 1
