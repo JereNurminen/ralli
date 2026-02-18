@@ -39,6 +39,7 @@ public class VehicleDebugInfoProvider : MonoBehaviour, IDebugInfoProvider
         builder.AddBool("Input Boost", carInput.Boost);
         builder.AddBool("Boosting", carController.IsBoosting);
         builder.AddFloat("Boost Factor", carController.BoostFactor);
+        builder.AddFloat("Drift Angle (deg)", carController.DriftAngle);
 
         builder.AddVector3("Velocity", rb.linearVelocity);
         builder.AddVector3("Angular Velocity", rb.angularVelocity);

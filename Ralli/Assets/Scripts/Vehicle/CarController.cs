@@ -99,6 +99,7 @@ public class CarController : MonoBehaviour
     public float WheelRadius => handling == null ? 0.35f : handling.wheelRadius;
     public bool IsBoosting => boostFactor > 0.01f;
     public float BoostFactor => boostFactor;
+    public float DriftAngle => GetDriftAngle();
 
     private void Awake()
     {
@@ -599,6 +600,19 @@ public class CarController : MonoBehaviour
             desiredLocalPosition.y / scale.y,
             desiredLocalPosition.z / scale.z
         );
+    }
+
+    private float GetDriftAngle()
+    {
+        if (rb == null) return 0f;
+        Vector3 velocity = rb.linearVelocity;
+        velocity.y = 0f;
+        if (velocity.sqrMagnitude < 1f) return 0f;
+        Vector3 flatForward = transform.forward;
+        flatForward.y = 0f;
+        flatForward.Normalize();
+        float angle = Vector3.SignedAngle(flatForward, velocity.normalized, Vector3.up);
+        return angle;
     }
 
     private void OnDrawGizmosSelected()
