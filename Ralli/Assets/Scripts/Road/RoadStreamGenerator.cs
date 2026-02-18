@@ -227,6 +227,11 @@ public class RoadStreamGenerator : MonoBehaviour
         return GetChunkIndexAtS(s);
     }
 
+    public float GetEstimatedPlayerS()
+    {
+        return EstimatePlayerS();
+    }
+
     private void EnsureChunkRange(int minChunk, int maxChunk)
     {
         for (int chunkIndex = minChunk; chunkIndex <= maxChunk; chunkIndex++)

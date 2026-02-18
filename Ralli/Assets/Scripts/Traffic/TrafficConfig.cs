@@ -8,6 +8,10 @@ public class TrafficConfig : ScriptableObject
     public bool enableTraffic = true;
     [Tooltip("Approximate vehicles per kilometer, split across both lanes.")]
     public float vehiclesPerKilometer = 10f;
+    [Tooltip("Density multiplier at max progress.")]
+    public float maxDensityMultiplier = 1.8f;
+    [Tooltip("Player progress distance (m) where max density multiplier is reached.")]
+    public float densityRampDistance = 6000f;
     [Tooltip("Maximum vehicles spawned per chunk.")]
     public int maxVehiclesPerChunk = 4;
     [Tooltip("Minimum longitudinal spacing between traffic vehicles in same lane (m).")]
@@ -41,9 +45,13 @@ public class TrafficConfig : ScriptableObject
     [Tooltip("Chance [0..1] that a spawned vehicle is in player's direction lane.")]
     [Range(0f, 1f)] public float sameDirectionLaneChance = 0.35f;
 
+    [Header("Collision Response")]
+    [Tooltip("Distance to player (m) where a traffic car is released from spline-following and becomes dynamic.")]
+    [Min(0.05f)] public float ragdollReleaseDistance = 0.5f;
+
     [Header("Visuals")]
     [Tooltip("Simple traffic body size (x=width, y=height, z=length).")]
     public Vector3 vehicleBoxSize = new Vector3(1.78f, 1.46f, 4.05f);
-    [Tooltip("Body color for simple box traffic cars.")]
-    public Color vehicleColor = new Color(0.75f, 0.75f, 0.78f, 1f);
+    [Tooltip("Traffic vehicle rigidbody mass in kilograms.")]
+    public float vehicleMassKg = 1100f;
 }

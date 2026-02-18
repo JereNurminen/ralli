@@ -13,7 +13,9 @@ MonoBehaviour:
   m_Name: Traffic_Default
   m_EditorClassIdentifier:
   enableTraffic: 1
-  vehiclesPerKilometer: 10
+  vehiclesPerKilometer: 15
+  maxDensityMultiplier: 1.8
+  densityRampDistance: 6000
   maxVehiclesPerChunk: 4
   sameLaneMinSpacing: 24
   spawnAheadChunks: 1
@@ -27,5 +29,6 @@ MonoBehaviour:
   cornerMinSpeedFactor: 0.55
   laneShoulderInset: 0.45
   sameDirectionLaneChance: 0.35
+  ragdollReleaseDistance: 0.5
   vehicleBoxSize: {x: 1.78, y: 1.46, z: 4.05}
-  vehicleColor: {r: 0.75, g: 0.75, b: 0.78, a: 1}
+  vehicleMassKg: 1000

@@ -882,8 +882,8 @@ MonoBehaviour:
   pineTreePrefabs:
   - {fileID: 919132149155446097, guid: 80aeb3648fbe24d45848ec36ebadaa03, type: 3}
   - {fileID: 919132149155446097, guid: d35f8b8008c6542679b4a6309b97c0ea, type: 3}
-  birchLeafFallbackMaterial: {fileID: 2100000, guid: df0a8ea8c062641cd9dc811e0c9bb80e, type: 2}
-  pineLeafFallbackMaterial: {fileID: 2100000, guid: 671aecdb4921445dc8cd990493816751, type: 2}
+  birchLeafFallbackMaterial: {fileID: 2100000, guid: 43177b12f6f3f47d5a7d292c9c174f17, type: 2}
+  pineLeafFallbackMaterial: {fileID: 2100000, guid: c8038bd81c7ea42e886e610141cb2829, type: 2}
   birchBarkFallbackMaterial: {fileID: 2100000, guid: fc34c52496af84173956f0024900d06a, type: 2}
   pineBarkFallbackMaterial: {fileID: 2100000, guid: d2b97f5ff4551448991805ddb74a63e8, type: 2}
   generateOnStart: 1

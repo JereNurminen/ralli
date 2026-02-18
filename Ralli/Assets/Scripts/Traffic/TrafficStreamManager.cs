@@ -90,7 +90,11 @@ public class TrafficStreamManager : MonoBehaviour
         }
 
         float chunkLength = Mathf.Max(1f, endS - startS);
-        float perChunk = chunkLength * 0.001f * Mathf.Max(0f, config.vehiclesPerKilometer);
+        float playerS = roadStream.GetEstimatedPlayerS();
+        float densityT = Mathf.Clamp01(playerS / Mathf.Max(1f, config.densityRampDistance));
+        float densityMultiplier = Mathf.Lerp(1f, Mathf.Max(1f, config.maxDensityMultiplier), densityT);
+        float dynamicVehiclesPerKm = Mathf.Max(0f, config.vehiclesPerKilometer) * densityMultiplier;
+        float perChunk = chunkLength * 0.001f * dynamicVehiclesPerKm;
         int count = Mathf.Clamp(Mathf.RoundToInt(perChunk), 0, Mathf.Max(0, config.maxVehiclesPerChunk));
         if (count <= 0)
         {
@@ -161,6 +165,8 @@ public class TrafficStreamManager : MonoBehaviour
 
         rb.isKinematic = true;
         rb.useGravity = false;
+        rb.mass = config != null ? Mathf.Max(100f, config.vehicleMassKg) : 1100f;
+        rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
 
         return go.AddComponent<TrafficVehicle>();
     }
@@ -257,4 +263,5 @@ public class TrafficStreamManager : MonoBehaviour
 
         return true;
     }
+
 }
