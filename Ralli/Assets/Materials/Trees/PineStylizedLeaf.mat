@@ -47,16 +47,16 @@ Material:
         m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
-    - _BandSoftness: 0.6
+    - _BandSoftness: 0.119
     - _BlobNoiseScale: 0.2
-    - _BlobNoiseStrength: 0.14
+    - _BlobNoiseStrength: 0.303
     - _BlobTiling: 5.8
-    - _Cutoff: 0.46
+    - _Cutoff: 0.109
     - _GradientMaxY: 14
     - _GradientMinY: 0.8
-    - _LightSteps: 4
-    - _MinLight: 0.3
-    - _ShadowStrength: 0
+    - _LightSteps: 2.85
+    - _MinLight: 0.486
+    - _ShadowStrength: 0.326
     m_Colors:
     - _BottomColor: {r: 0.12, g: 0.31, b: 0.17, a: 1}
     - _TopColor: {r: 0.24, g: 0.5, b: 0.28, a: 1}

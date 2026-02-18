@@ -201,7 +201,7 @@ MonoBehaviour:
   longitudinalSlipScale: 1
   boostForceMultiplier: 5
   boostRampUpSpeed: 8
-  boostRampDownSpeed: 6
+  boostRampDownSpeed: 3
   centerOfMassYOffset: -0.6
   yawDamping: 2.2
   rollDamping: 1.4
