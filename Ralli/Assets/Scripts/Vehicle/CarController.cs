@@ -83,6 +83,8 @@ public class CarController : MonoBehaviour
     private float shiftPauseTimer;
     private float baseDriveForceNow;
     private float baseEngineBrakingForceNow;
+    private float boostFactor;
+    private float nearZeroSteerTime;
 
     public float SpeedMps => rb == null ? 0f : rb.linearVelocity.magnitude;
     public float SteerAngleDegrees => steerAngle;
@@ -93,6 +95,8 @@ public class CarController : MonoBehaviour
     public bool IsGrounded => groundedWheels > 0;
     public int WheelCount => 4;
     public float WheelRadius => handling == null ? 0.35f : handling.wheelRadius;
+    public bool IsBoosting => boostFactor > 0.01f;
+    public float BoostFactor => boostFactor;
 
     private void Awake()
     {
@@ -156,6 +160,10 @@ public class CarController : MonoBehaviour
         float steerAuthority = Mathf.Lerp(handling.steerWhenFrontAirborne, 1f, frontGroundFactor);
         steerAngle *= steerAuthority;
         UpdateDriveState();
+
+        float boostTarget = input.Boost ? 1f : 0f;
+        float boostRate = input.Boost ? handling.boostRampUpSpeed : handling.boostRampDownSpeed;
+        boostFactor = Mathf.MoveTowards(boostFactor, boostTarget, boostRate * Time.fixedDeltaTime);
 
         SimulateWheel(frontLeft);
         SimulateWheel(frontRight);
@@ -251,6 +259,8 @@ public class CarController : MonoBehaviour
         float driveInput = input.Throttle;
         float brakeInput = input.Brake;
         float handbrakeInput = input.Handbrake ? 1f : 0f;
+
+        // --- Lateral force via slip curve ---
         float lateralGrip = wheel.axle == Axle.Front ? handling.frontLateralGrip : handling.rearLateralGrip;
         if (wheel.axle == Axle.Rear && handbrakeInput > 0f)
         {
@@ -265,13 +275,20 @@ public class CarController : MonoBehaviour
             lateralGrip *= handling.rearGripWhenFrontAirborne;
         }
 
-        float lateralForce = -lateralSpeed * lateralGrip * rb.mass;
+        float absLateralSlip = Mathf.Abs(lateralSpeed);
+        float lateralSlipNormalized = absLateralSlip * handling.lateralSlipScale;
+        float lateralGripFactor = handling.lateralSlipCurve != null
+            ? Mathf.Clamp01(handling.lateralSlipCurve.Evaluate(lateralSlipNormalized))
+            : 1f;
+        float lateralForce = -Mathf.Sign(lateralSpeed) * lateralGripFactor * lateralGrip * wheel.springForce;
 
+        // --- Longitudinal force (drive + brake) ---
         float driveForce = 0f;
         float engineBrakingForce = 0f;
         if (wheel.axle == Axle.Rear)
         {
-            driveForce = driveInput * baseDriveForceNow * handling.rearDriveBias * 0.5f;
+            float rearBoostMultiplier = 1f + boostFactor * (handling.boostForceMultiplier - 1f);
+            driveForce = driveInput * baseDriveForceNow * rearBoostMultiplier * handling.rearDriveBias * 0.5f;
             engineBrakingForce = baseEngineBrakingForceNow * handling.rearDriveBias * 0.5f;
             if (rearGroundedCount == 1)
             {
@@ -297,6 +314,8 @@ public class CarController : MonoBehaviour
             longitudinalForce -= Mathf.Sign(forwardSpeed) * engineBrakingForce;
         }
 
+        // --- Friction circle clamp ---
+        // The circle naturally handles boost: high longitudinal force crowds out lateral budget → rear kicks out.
         Vector2 tireForce = new Vector2(lateralForce, longitudinalForce);
         float maxTireForce = wheel.springForce * handling.tireFriction;
         if (wheel.axle == Axle.Rear && rearGroundedCount == 1)
@@ -480,6 +499,13 @@ public class CarController : MonoBehaviour
     private void ApplyStraighteningAssist()
     {
         if (Mathf.Abs(input.Steer) > handling.straighteningSteerThreshold)
+        {
+            nearZeroSteerTime = 0f;
+            return;
+        }
+
+        nearZeroSteerTime += Time.fixedDeltaTime;
+        if (nearZeroSteerTime < handling.straighteningActivationDelay)
         {
             return;
         }

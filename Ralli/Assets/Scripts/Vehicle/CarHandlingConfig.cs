@@ -85,6 +85,36 @@ public class CarHandlingConfig : ScriptableObject
     [Tooltip("Speed-squared drag. Higher = stronger high-speed deceleration.")]
     public float aerodynamicDrag = 1.35f;
 
+    [Header("Tire Slip Curves")]
+    [Tooltip("Lateral slip speed (normalized via lateralSlipScale) -> grip multiplier (0..1). Peak near x=1.0.")]
+    public AnimationCurve lateralSlipCurve = new AnimationCurve(
+        new Keyframe(0f, 0f),
+        new Keyframe(0.5f, 0.85f),
+        new Keyframe(1.0f, 1.0f),
+        new Keyframe(2.0f, 0.78f),
+        new Keyframe(4.0f, 0.55f)
+    );
+    [Tooltip("Scales lateral speed (m/s) before curve lookup. Higher = peak grip reached at lower slip speeds.")]
+    public float lateralSlipScale = 4.0f;
+    [Tooltip("Longitudinal slip ratio (0..1+) -> traction multiplier (0..1). Peak near 0.15.")]
+    public AnimationCurve longitudinalSlipCurve = new AnimationCurve(
+        new Keyframe(0f, 0f),
+        new Keyframe(0.15f, 1.0f),
+        new Keyframe(0.35f, 0.82f),
+        new Keyframe(1.0f, 0.55f),
+        new Keyframe(2.0f, 0.40f)
+    );
+    [Tooltip("Scales slip ratio before curve lookup.")]
+    public float longitudinalSlipScale = 1.0f;
+
+    [Header("Boost")]
+    [Tooltip("Drive force multiplier applied to rear wheels while boost is active.")]
+    public float boostForceMultiplier = 4.0f;
+    [Tooltip("How quickly boost force ramps up (units/second toward 1.0).")]
+    public float boostRampUpSpeed = 8f;
+    [Tooltip("How quickly boost force ramps down when released.")]
+    public float boostRampDownSpeed = 6f;
+
     [Header("Stability")]
     [Tooltip("Rigidbody center-of-mass Y offset. Lower = more stable, less roll.")]
     public float centerOfMassYOffset = -0.6f;
@@ -94,6 +124,8 @@ public class CarHandlingConfig : ScriptableObject
     public float rollDamping = 1.4f;
     [Tooltip("Steer input threshold under which straightening assist can activate.")]
     public float straighteningSteerThreshold = 0.03f;
+    [Tooltip("Seconds of near-zero steer before straightening assist fires. Allows Scandinavian flick transitions.")]
+    [Range(0f, 0.5f)] public float straighteningActivationDelay = 0.12f;
     [Tooltip("How strongly no-input assist removes sideways velocity.")]
     public float straighteningLateralDamping = 3.5f;
     [Tooltip("How strongly no-input assist damps yaw rotation.")]

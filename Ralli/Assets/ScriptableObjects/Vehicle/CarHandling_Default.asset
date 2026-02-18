@@ -11,9 +11,9 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: ab9000973f2a84faba23786e57913933, type: 3}
   m_Name: CarHandling_Default
-  m_EditorClassIdentifier:
+  m_EditorClassIdentifier: 
   maxSteerAngle: 45
-  steerResponse: 8
+  steerResponse: 16
   steerFadeSpeedKph: 162
   highSpeedSteerFactor: 1
   wheelRadius: 0.35
@@ -25,7 +25,7 @@ MonoBehaviour:
   antiRollStiffness: 6200
   tireFriction: 0.88
   frontLateralGrip: 10.5
-  rearLateralGrip: 4.44
+  rearLateralGrip: 2
   rearGripWhileHandbrake: 0.1
   rearGripWhenSingleRearWheelGrounded: 0.4
   rearTireForceCapWhenSingleRearWheelGrounded: 0.4
@@ -95,10 +95,118 @@ MonoBehaviour:
   engineBrakingStrength: 0.342
   rollingResistance: 150
   aerodynamicDrag: 1.15
+  lateralSlipCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 0.5
+      value: 0.85
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 2
+      value: 0.78
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 4
+      value: 0.55
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  lateralSlipScale: 1
+  longitudinalSlipCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 0.15
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 0.35
+      value: 0.82
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 0.55
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 2
+      value: 0.4
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  longitudinalSlipScale: 1
+  boostForceMultiplier: 5
+  boostRampUpSpeed: 8
+  boostRampDownSpeed: 6
   centerOfMassYOffset: -0.6
   yawDamping: 2.2
   rollDamping: 1.4
   straighteningSteerThreshold: 0.03
+  straighteningActivationDelay: 0.12
   straighteningLateralDamping: 3.5
   straighteningYawDamping: 4.5
   steerWhenFrontAirborne: 0.15

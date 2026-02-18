@@ -36,6 +36,9 @@ public class VehicleDebugInfoProvider : MonoBehaviour, IDebugInfoProvider
         builder.AddFloat("Input Brake", carInput.Brake);
         builder.AddFloat("Input Steer", carInput.Steer);
         builder.AddBool("Input Handbrake", carInput.Handbrake);
+        builder.AddBool("Input Boost", carInput.Boost);
+        builder.AddBool("Boosting", carController.IsBoosting);
+        builder.AddFloat("Boost Factor", carController.BoostFactor);
 
         builder.AddVector3("Velocity", rb.linearVelocity);
         builder.AddVector3("Angular Velocity", rb.angularVelocity);
