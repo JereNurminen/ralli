@@ -331,7 +331,8 @@ public class CarController : MonoBehaviour
         }
 
         // --- Friction circle clamp ---
-        // The circle naturally handles boost: high longitudinal force crowds out lateral budget → rear kicks out.
+        // When boosting, prioritise longitudinal force — lateral gets only the remaining budget.
+        // This makes boost actively reduce rear grip → oversteer.
         Vector2 tireForce = new Vector2(lateralForce, longitudinalForce);
         float maxTireForce = wheel.springForce * handling.tireFriction;
         if (wheel.axle == Axle.Rear && rearGroundedCount == 1)
@@ -344,7 +345,25 @@ public class CarController : MonoBehaviour
         }
         else if (tireForce.magnitude > maxTireForce)
         {
-            tireForce = tireForce.normalized * maxTireForce;
+            if (wheel.axle == Axle.Rear && boostFactor > 0.01f)
+            {
+                // Longitudinal-priority clamp: drive force eats the budget first,
+                // lateral gets whatever is left. More boost = less rear grip.
+                float absLong = Mathf.Abs(tireForce.y);
+                float clampedLong = Mathf.Min(absLong, maxTireForce);
+                float lateralBudget = Mathf.Sqrt(Mathf.Max(0f, maxTireForce * maxTireForce - clampedLong * clampedLong));
+                // Blend between normal (ratio-preserving) and longitudinal-priority based on boost factor.
+                Vector2 normalClamped = tireForce.normalized * maxTireForce;
+                Vector2 boostClamped = new Vector2(
+                    Mathf.Sign(tireForce.x) * Mathf.Min(Mathf.Abs(tireForce.x), lateralBudget),
+                    Mathf.Sign(tireForce.y) * clampedLong
+                );
+                tireForce = Vector2.Lerp(normalClamped, boostClamped, boostFactor);
+            }
+            else
+            {
+                tireForce = tireForce.normalized * maxTireForce;
+            }
         }
 
         Vector3 finalForce = right * tireForce.x + forward * tireForce.y;

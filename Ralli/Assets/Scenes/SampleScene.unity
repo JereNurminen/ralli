@@ -404,6 +404,10 @@ MonoBehaviour:
   nearFieldOfView: 60
   farFieldOfView: 76
   fovLerp: 6
+  boostDistanceScale: 1.15
+  boostFovAdd: 6
+  boostEffectRampUp: 5
+  boostEffectRampDown: 3
 --- !u!1 &344891948
 GameObject:
   m_ObjectHideFlags: 0
@@ -718,6 +722,7 @@ GameObject:
   m_Component:
   - component: {fileID: 832575519}
   - component: {fileID: 832575518}
+  - component: {fileID: 832575520}
   m_Layer: 0
   m_Name: Global Volume
   m_TagString: Untagged
@@ -757,6 +762,23 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &832575520
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 832575517}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2453a08f1cd0141efb1e6df6ad71019e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  carController: {fileID: 1993720259}
+  maxMotionBlurIntensity: 0.35
+  maxChromaticAberration: 0.12
+  rampUp: 5
+  rampDown: 3
 --- !u!1 &1213651511
 GameObject:
   m_ObjectHideFlags: 0
@@ -932,18 +954,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 99314c0c61d9e46df9d9c734b2a1fa62, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  roadStreamGenerator: {fileID: 1239733281}
-  resolutionX: 63
-  resolutionZ: 64
-  terrainMargin: 30
-  sampleStepS: 1
-  roadHalfWidth: 4
-  blendDistance: 8
-  applyCurveInteriorAngleRule: 0
-  wallDepth: 10
-  noiseFrequency: 0.025
-  noiseAmplitude: 3
-  verboseLogs: 0
 --- !u!23 &1239733285
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -1395,7 +1405,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c6e230a1be7854e028aafa2fb7382a49, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  minSlipIntensity: 0.906
+  minSlipIntensity: 0.98
   brakeSlipThreshold: 0.8
   tireMarkMaterial: {fileID: 2100000, guid: 74d8350b5bea04b878b4d2d4639e1d32, type: 2}
   markWidth: 0.22
@@ -1420,7 +1430,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   smokePrefab: {fileID: 9091878091063422181, guid: ace0efcf2aeba4260b1b6e98a2bd700c, type: 3}
-  minSlipForSmoke: 0.958
+  minSlipForSmoke: 0.9
   maxEmissionRate: 40
   emitHeight: 0.1
 --- !u!1660057539 &9223372036854775807

@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: CarHandling_Default
   m_EditorClassIdentifier: 
   maxSteerAngle: 45
-  steerResponse: 16
+  steerResponse: 19.7
   steerFadeSpeedKph: 162
   highSpeedSteerFactor: 1
   wheelRadius: 0.35
@@ -23,17 +23,17 @@ MonoBehaviour:
   maxSuspensionVelocity: 5
   maxSuspensionLoadFactor: 1.8
   antiRollStiffness: 6200
-  tireFriction: 0.88
+  tireFriction: 0.9
   frontLateralGrip: 10.5
-  rearLateralGrip: 2
+  rearLateralGrip: 2.5
   rearGripWhileHandbrake: 0.1
   rearGripWhenSingleRearWheelGrounded: 0.4
   rearTireForceCapWhenSingleRearWheelGrounded: 0.4
-  rearDriveBias: 0.95
-  maxDriveForce: 8500
-  maxBrakeForce: 14000
-  handbrakeForce: 18033
-  handbrakeRearBias: 0.813
+  rearDriveBias: 0.99
+  maxDriveForce: 7000
+  maxBrakeForce: 25000
+  handbrakeForce: 20000
+  handbrakeRearBias: 0.879
   rearDriveWhenSingleRearWheelGrounded: 0.35
   rearSpringForceWhenSingleRearWheelGrounded: 0.6
   fakeGearTopSpeedKph: 198
@@ -91,8 +91,8 @@ MonoBehaviour:
   fakeGearCount: 6
   fakeGearThresholds01: []
   shiftTorqueDip: 0.75
-  shiftPauseDuration: 0.08
-  engineBrakingStrength: 0.342
+  shiftPauseDuration: 0.0919
+  engineBrakingStrength: 0.56
   rollingResistance: 150
   aerodynamicDrag: 1.15
   lateralSlipCurve:
@@ -200,8 +200,8 @@ MonoBehaviour:
     m_RotationOrder: 4
   longitudinalSlipScale: 1
   boostForceMultiplier: 5
-  boostRampUpSpeed: 8
-  boostRampDownSpeed: 3
+  boostRampUpSpeed: 1
+  boostRampDownSpeed: 5
   centerOfMassYOffset: -0.6
   yawDamping: 2.2
   rollDamping: 1.4

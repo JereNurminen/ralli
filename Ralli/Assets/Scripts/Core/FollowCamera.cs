@@ -19,10 +19,17 @@ public class FollowCamera : MonoBehaviour
     [SerializeField] private float farFieldOfView = 76f;
     [SerializeField] private float fovLerp = 6f;
 
+    [Header("Boost Effects")]
+    [SerializeField] private float boostDistanceScale = 1.15f;
+    [SerializeField] private float boostFovAdd = 6f;
+    [SerializeField] private float boostEffectRampUp = 5f;
+    [SerializeField] private float boostEffectRampDown = 3f;
+
     private CarController targetCarController;
     private Rigidbody targetRigidbody;
     private Camera cachedCamera;
     private float smoothedSpeedMps;
+    private float smoothedBoostFactor;
 
     private void Start()
     {
@@ -57,7 +64,11 @@ public class FollowCamera : MonoBehaviour
         float speedBlend = 1f - Mathf.Exp(-Mathf.Max(0.01f, speedResponse) * Time.deltaTime);
         smoothedSpeedMps = Mathf.Lerp(smoothedSpeedMps, speedMps, speedBlend);
         float speedT = Mathf.Clamp01(smoothedSpeedMps / Mathf.Max(0.1f, speedForMaxDistance));
+        float boostRaw = targetCarController != null ? targetCarController.BoostFactor : 0f;
+        float boostRate = boostRaw > smoothedBoostFactor ? boostEffectRampUp : boostEffectRampDown;
+        smoothedBoostFactor = Mathf.Lerp(smoothedBoostFactor, boostRaw, 1f - Mathf.Exp(-boostRate * Time.deltaTime));
         float distanceScale = Mathf.Lerp(nearDistanceScale, farDistanceScale, speedT);
+        distanceScale = Mathf.Lerp(distanceScale, distanceScale * boostDistanceScale, smoothedBoostFactor);
 
         Vector3 pivot = target.position + Vector3.up * 1.1f;
         Vector3 desiredPosition = pivot + yawRotation * (offset * distanceScale);
@@ -72,7 +83,8 @@ public class FollowCamera : MonoBehaviour
 
         if (cachedCamera != null)
         {
-            float targetFov = Mathf.Lerp(nearFieldOfView, farFieldOfView, speedT);
+            float targetFov = Mathf.Lerp(nearFieldOfView, farFieldOfView, speedT)
+                + boostFovAdd * smoothedBoostFactor;
             cachedCamera.fieldOfView = Mathf.Lerp(
                 cachedCamera.fieldOfView,
                 targetFov,

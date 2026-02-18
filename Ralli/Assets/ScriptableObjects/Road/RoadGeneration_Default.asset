@@ -11,8 +11,8 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 8cd6be16483d2497d843fc0a519aa643, type: 3}
   m_Name: RoadGeneration_Default
-  m_EditorClassIdentifier:
-  seed: 1337
+  m_EditorClassIdentifier: 
+  seed: 67
   chunkLength: 140
   minChunkLength: 100
   maxChunkLength: 180
