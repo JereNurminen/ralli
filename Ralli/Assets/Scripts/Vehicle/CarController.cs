@@ -85,8 +85,10 @@ public class CarController : MonoBehaviour
     private float baseEngineBrakingForceNow;
     private float boostFactor;
     private float nearZeroSteerTime;
+    private bool inReverse;
 
     public float SpeedMps => rb == null ? 0f : rb.linearVelocity.magnitude;
+    public bool InReverse => inReverse;
     public float SteerAngleDegrees => steerAngle;
     public float CurrentSteerFactor => currentSteerFactor;
     public int CurrentFakeGear => currentFakeGear + 1;
@@ -159,6 +161,19 @@ public class CarController : MonoBehaviour
         float frontGroundFactor = Mathf.Clamp01(frontGroundedCountNow / 2f);
         float steerAuthority = Mathf.Lerp(handling.steerWhenFrontAirborne, 1f, frontGroundFactor);
         steerAngle *= steerAuthority;
+
+        float forwardSpeedSigned = Vector3.Dot(rb.linearVelocity, transform.forward);
+        bool nearlyStoppedOrReversing = forwardSpeedSigned < 0.5f;
+        bool nearlyStoppedOrForward = forwardSpeedSigned > -0.5f;
+        if (!inReverse && input.Brake > 0.1f && nearlyStoppedOrReversing)
+        {
+            inReverse = true;
+        }
+        else if (inReverse && input.Throttle > 0.1f && nearlyStoppedOrForward)
+        {
+            inReverse = false;
+        }
+
         UpdateDriveState();
 
         float boostTarget = input.Boost ? 1f : 0f;
@@ -256,8 +271,9 @@ public class CarController : MonoBehaviour
         float forwardSpeed = Vector3.Dot(pointVelocity, forward);
         float lateralSpeed = Vector3.Dot(pointVelocity, right);
 
-        float driveInput = input.Throttle;
-        float brakeInput = input.Brake;
+        float driveInput = inReverse ? input.Brake : input.Throttle;
+        float brakeInput = inReverse ? input.Throttle : input.Brake;
+        float driveDirection = inReverse ? -1f : 1f;
         float handbrakeInput = input.Handbrake ? 1f : 0f;
 
         // --- Lateral force via slip curve ---
@@ -288,7 +304,7 @@ public class CarController : MonoBehaviour
         if (wheel.axle == Axle.Rear)
         {
             float rearBoostMultiplier = 1f + boostFactor * (handling.boostForceMultiplier - 1f);
-            driveForce = driveInput * baseDriveForceNow * rearBoostMultiplier * handling.rearDriveBias * 0.5f;
+            driveForce = driveDirection * driveInput * baseDriveForceNow * rearBoostMultiplier * handling.rearDriveBias * 0.5f;
             engineBrakingForce = baseEngineBrakingForceNow * handling.rearDriveBias * 0.5f;
             if (rearGroundedCount == 1)
             {
@@ -301,7 +317,7 @@ public class CarController : MonoBehaviour
         }
         else
         {
-            driveForce = driveInput * baseDriveForceNow * (1f - handling.rearDriveBias) * 0.5f;
+            driveForce = driveDirection * driveInput * baseDriveForceNow * (1f - handling.rearDriveBias) * 0.5f;
             engineBrakingForce = baseEngineBrakingForceNow * (1f - handling.rearDriveBias) * 0.5f;
         }
 
