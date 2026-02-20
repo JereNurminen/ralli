@@ -23,14 +23,14 @@ MonoBehaviour:
   maxSuspensionVelocity: 5
   maxSuspensionLoadFactor: 1.8
   antiRollStiffness: 6200
-  tireFriction: 0.9
-  frontLateralGrip: 10.5
-  rearLateralGrip: 2.5
+  tireFriction: 1
+  frontLateralGrip: 20
+  rearLateralGrip: 6
   rearGripWhileHandbrake: 0.1
   rearGripWhenSingleRearWheelGrounded: 0.4
   rearTireForceCapWhenSingleRearWheelGrounded: 0.4
   rearDriveBias: 0.99
-  maxDriveForce: 7000
+  maxDriveForce: 5000
   maxBrakeForce: 25000
   handbrakeForce: 20000
   handbrakeRearBias: 0.879
@@ -200,8 +200,8 @@ MonoBehaviour:
     m_RotationOrder: 4
   longitudinalSlipScale: 1
   boostForceMultiplier: 5
-  boostRampUpSpeed: 1
-  boostRampDownSpeed: 5
+  boostRampUpSpeed: 5
+  boostRampDownSpeed: 2
   centerOfMassYOffset: -0.6
   yawDamping: 2.2
   rollDamping: 1.4
