@@ -23,8 +23,8 @@ MonoBehaviour:
   roadThickness: 0.35
   shoulderWidth: 0.825
   shoulderDrop: 0.05
-  ditchWidth: 2.7
-  ditchDepth: 0.65
+  ditchWidth: 1
+  ditchDepth: 0.3
   ditchBottomFlatWidth: 0.75
   collidableForestWidth: 15
   dropSkirtDepth: 3
