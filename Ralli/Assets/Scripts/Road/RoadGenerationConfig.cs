@@ -130,6 +130,42 @@ public class RoadGenerationConfig : ScriptableObject
     [Tooltip("How fast bank angle can change (deg/m).")]
     public float bankChangeRateDegPerMeter = 1.0f;
 
+    [Header("Railings")]
+    [Tooltip("If true, rails are generated only for samples that come from designed road pieces.")]
+    public bool railsOnlyOnDesignedPieces = true;
+    [Tooltip("Minimum absolute local curvature (1/m) required to place railing.")]
+    public float minCurvatureForRail = 0.01f;
+    [Tooltip("Minimum merged railing span length in meters.")]
+    public float minRailSpanLengthMeters = 6f;
+    [Tooltip("Lateral offset from asphalt edge in meters.")]
+    public float railLateralOffsetMeters = 0.25f;
+    [Tooltip("Vertical offset above road surface in meters.")]
+    public float railHeightMeters = 0.6f;
+    [Tooltip("How far from each span edge beam cross-section tapers to zero (meters).")]
+    public float railEndTaperMeters = 1f;
+    [Tooltip("Distance from each rail span end over which the beam drops toward ground (meters).")]
+    public float railEndDropDistanceMeters = 2.5f;
+    [Tooltip("How far below ground the beam center ends at span tips (meters).")]
+    public float railEndGroundClipDepthMeters = 0.08f;
+    [Tooltip("Sampling step in meters used for railing extrusion.")]
+    public float railSampleSpacingMeters = 1f;
+    [Tooltip("Sideways-rotated W-beam depth from post face toward road center (meters).")]
+    public float railBeamDepthMeters = 0.24f;
+    [Tooltip("Beam cross-section height (meters).")]
+    public float railBeamHeightMeters = 0.28f;
+    [Tooltip("Beam material thickness for the sideways-W profile (meters).")]
+    public float railBeamFlangeThicknessMeters = 0.055f;
+    [Tooltip("Post spacing along the railing span (meters).")]
+    public float railPostSpacingMeters = 2.5f;
+    [Tooltip("Post width across road-normal axis (meters).")]
+    public float railPostWidthMeters = 0.08f;
+    [Tooltip("Post depth along road tangent axis (meters).")]
+    public float railPostDepthMeters = 0.08f;
+    [Tooltip("Post height (meters).")]
+    public float railPostHeightMeters = 0.65f;
+    [Tooltip("Post embed depth into ground (meters).")]
+    public float railPostEmbedDepthMeters = 0.06f;
+
     [Header("Debug")]
     [Tooltip("Draw centerline and frame gizmos.")]
     public bool drawGizmos = true;

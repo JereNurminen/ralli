@@ -901,6 +901,8 @@ MonoBehaviour:
   config: {fileID: 11400000, guid: b0b7b6e1a0d0849f98c31440aafafac0, type: 2}
   target: {fileID: 0}
   roadMaterial: {fileID: 2100000, guid: d8887addcf39b46cc8ec8c2dde220d10, type: 2}
+  railMaterial: {fileID: 0}
+  railPhysicsMaterial: {fileID: 13400000, guid: b6d4d1c403cf54dc285907bb25bb2600, type: 2}
   birchTreePrefabs:
   - {fileID: 919132149155446097, guid: 62828c077404f4d37b7de1940913e6b3, type: 3}
   - {fileID: 919132149155446097, guid: e9d5ca91c087b4b7a8e0eac25b716ac9, type: 3}

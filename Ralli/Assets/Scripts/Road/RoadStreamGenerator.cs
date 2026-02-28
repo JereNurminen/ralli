@@ -15,6 +15,7 @@ public class RoadStreamGenerator : MonoBehaviour
         public float bankTargetAngle;
         public float turnRateDegPerMeter;
         public float slopeAngleDeg;
+        public bool isDesignedPiece;
     }
 
     private class ChunkData
@@ -23,6 +24,7 @@ public class RoadStreamGenerator : MonoBehaviour
         public int sampleStartIndex;
         public int sampleEndIndex;
         public GameObject gameObject;
+        public readonly List<GameObject> railObjects = new List<GameObject>();
     }
 
     private struct ForestTriangle
@@ -55,6 +57,8 @@ public class RoadStreamGenerator : MonoBehaviour
     [SerializeField] private RoadGenerationConfig config;
     [SerializeField] private Transform target;
     [SerializeField] private Material roadMaterial;
+    [SerializeField] private Material railMaterial;
+    [SerializeField] private PhysicsMaterial railPhysicsMaterial;
     [SerializeField] private GameObject[] birchTreePrefabs;
     [SerializeField] private GameObject[] pineTreePrefabs;
     [SerializeField] private Material birchLeafFallbackMaterial;
@@ -69,6 +73,7 @@ public class RoadStreamGenerator : MonoBehaviour
     private readonly Dictionary<int, ChunkData> chunks = new Dictionary<int, ChunkData>();
     private readonly List<ChunkLayout> chunkLayouts = new List<ChunkLayout>(256);
     private readonly Dictionary<int, List<Vector2>> chunkTreePositions = new Dictionary<int, List<Vector2>>();
+    private Material runtimeRailFallbackMaterial;
 
     private enum PieceType { Straight, Curve, Designed }
 
@@ -283,6 +288,7 @@ public class RoadStreamGenerator : MonoBehaviour
             sampleEndIndex = endSampleIndex,
             gameObject = chunkObject
         };
+        CreateRailObjectsForChunk(chunk, layout);
 
         chunks[chunkIndex] = chunk;
     }
@@ -467,6 +473,202 @@ public class RoadStreamGenerator : MonoBehaviour
         return mesh;
     }
 
+    private void CreateRailObjectsForChunk(ChunkData chunk, ChunkLayout layout)
+    {
+        if (config == null || chunk == null || chunk.gameObject == null)
+        {
+            return;
+        }
+
+        List<RailSampleMark> marks = BuildRailMarks(layout.sampleStartIndex, layout.sampleEndIndex);
+        List<RailSpan> spans = RailPlacementUtility.BuildSpans(marks, Mathf.Max(0f, config.minRailSpanLengthMeters));
+        if (spans.Count == 0)
+        {
+            return;
+        }
+
+        float sampleSpacing = Mathf.Max(0.25f, config.railSampleSpacingMeters);
+        float halfRoadWidth = Mathf.Max(0f, config.roadWidth) * 0.5f;
+        float lateralOffset = Mathf.Max(0f, config.railLateralOffsetMeters);
+        float beamCenterHeight = config.railHeightMeters;
+        float beamDepth = Mathf.Max(0.02f, config.railBeamDepthMeters);
+        float beamHeight = Mathf.Max(0.02f, config.railBeamHeightMeters);
+        float beamFlangeThickness = Mathf.Max(0.005f, config.railBeamFlangeThicknessMeters);
+        float postWidth = Mathf.Max(0.01f, config.railPostWidthMeters);
+        float postSpacing = Mathf.Max(0.25f, config.railPostSpacingMeters);
+
+        for (int i = 0; i < spans.Count; i++)
+        {
+            RailSpan span = spans[i];
+            float edgeOffset = halfRoadWidth + lateralOffset;
+            List<RailingFrameSample> frames = BuildRailingFramesForSpan(
+                span,
+                sampleSpacing,
+                edgeOffset,
+                beamCenterHeight,
+                postWidth);
+            Mesh railMesh = RailingMeshBuilder.BuildMesh(
+                frames,
+                beamDepth,
+                beamHeight,
+                beamFlangeThickness,
+                0f);
+            if (railMesh == null)
+            {
+                continue;
+            }
+
+            GameObject railObject = new GameObject($"Rail_{chunk.chunkIndex:0000}_{i:00}_{span.side}");
+            railObject.transform.SetParent(chunk.gameObject.transform, true);
+
+            MeshFilter railFilter = railObject.AddComponent<MeshFilter>();
+            MeshRenderer railRenderer = railObject.AddComponent<MeshRenderer>();
+            MeshCollider railCollider = railObject.AddComponent<MeshCollider>();
+            Mesh railColliderMesh = RailingMeshBuilder.BuildRectangularColliderMesh(frames, beamDepth, beamHeight);
+            railFilter.sharedMesh = railMesh;
+            railCollider.sharedMesh = railColliderMesh != null ? railColliderMesh : railMesh;
+            if (railPhysicsMaterial != null)
+            {
+                railCollider.sharedMaterial = railPhysicsMaterial;
+            }
+            railRenderer.sharedMaterial = ResolveRailMaterial();
+            chunk.railObjects.Add(railObject);
+
+            CreateRailPostsForSpan(chunk, span, edgeOffset, beamCenterHeight, postSpacing);
+        }
+    }
+
+    private List<RailSampleMark> BuildRailMarks(int startSampleIndex, int endSampleIndex)
+    {
+        var marks = new List<RailSampleMark>(Mathf.Max(1, endSampleIndex - startSampleIndex + 1));
+        int start = Mathf.Clamp(startSampleIndex, 0, samples.Count - 1);
+        int end = Mathf.Clamp(endSampleIndex, start, samples.Count - 1);
+
+        for (int i = start; i <= end; i++)
+        {
+            int prevIndex = Mathf.Max(0, i - 1);
+            int nextIndex = Mathf.Min(samples.Count - 1, i + 1);
+            RoadSample prev = samples[prevIndex];
+            RoadSample next = samples[nextIndex];
+            RoadSample current = samples[i];
+
+            float distance = Mathf.Max(0.001f, next.s - prev.s);
+            float curvature = RailPlacementUtility.ComputeSignedCurvature(prev.tangent, next.tangent, distance);
+            RailSide side = RailPlacementUtility.ClassifySide(
+                curvature,
+                config.minCurvatureForRail,
+                current.isDesignedPiece,
+                config.railsOnlyOnDesignedPieces
+            );
+
+            marks.Add(new RailSampleMark(current.s, side));
+        }
+
+        return marks;
+    }
+
+    private List<RailingFrameSample> BuildRailingFramesForSpan(
+        RailSpan span,
+        float sampleSpacing,
+        float edgeOffset,
+        float beamCenterHeight,
+        float postWidth)
+    {
+        var frames = new List<RailingFrameSample>();
+        float sideSign = span.side == RailSide.Right ? 1f : -1f;
+
+        float endS = span.endS;
+        for (float s = span.startS; s <= endS + 0.0001f; s += sampleSpacing)
+        {
+            if (!TryGetRoadFrameAtS(s, out Vector3 position, out _, out Vector3 right, out Vector3 up, out _))
+            {
+                continue;
+            }
+
+            Vector3 inward = -right * sideSign;
+            float localBeamCenterHeight = ComputeRailCenterHeightAtS(span, s, beamCenterHeight);
+            Vector3 outerSpineOrigin = position
+                                       + right * (edgeOffset * sideSign)
+                                       + inward * (postWidth * 0.5f)
+                                       + up * localBeamCenterHeight;
+            frames.Add(new RailingFrameSample(s, outerSpineOrigin, inward, up));
+        }
+
+        if (frames.Count > 0 && frames[frames.Count - 1].s < endS - 0.0001f &&
+            TryGetRoadFrameAtS(endS, out Vector3 endPosition, out _, out Vector3 endRight, out Vector3 endUp, out _))
+        {
+            Vector3 endInward = -endRight * sideSign;
+            float endBeamCenterHeight = ComputeRailCenterHeightAtS(span, endS, beamCenterHeight);
+            Vector3 endOuterSpine = endPosition
+                                    + endRight * (edgeOffset * sideSign)
+                                    + endInward * (postWidth * 0.5f)
+                                    + endUp * endBeamCenterHeight;
+            frames.Add(new RailingFrameSample(endS, endOuterSpine, endInward, endUp));
+        }
+
+        return frames;
+    }
+
+    private void CreateRailPostsForSpan(ChunkData chunk, RailSpan span, float edgeOffset, float beamCenterHeight, float postSpacing)
+    {
+        float sideSign = span.side == RailSide.Right ? 1f : -1f;
+        float postHeight = Mathf.Max(0.05f, config.railPostHeightMeters);
+        float postWidth = Mathf.Max(0.01f, config.railPostWidthMeters);
+        float postDepth = Mathf.Max(0.01f, config.railPostDepthMeters);
+        float embedDepth = Mathf.Max(0f, config.railPostEmbedDepthMeters);
+
+        int postIndex = 0;
+        for (float s = span.startS; s <= span.endS + 0.0001f; s += postSpacing)
+        {
+            if (!TryGetRoadFrameAtS(s, out Vector3 position, out Vector3 forward, out Vector3 right, out Vector3 up, out _))
+            {
+                continue;
+            }
+
+            float localBeamCenterHeight = ComputeRailCenterHeightAtS(span, s, beamCenterHeight);
+            Vector3 postCenter = position
+                                 + right * (edgeOffset * sideSign)
+                                 + up * (localBeamCenterHeight - postHeight * 0.5f - embedDepth);
+
+            GameObject post = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            post.name = $"RailPost_{chunk.chunkIndex:0000}_{postIndex:000}_{span.side}";
+            post.transform.SetParent(chunk.gameObject.transform, true);
+            post.transform.position = postCenter;
+            post.transform.rotation = Quaternion.LookRotation(forward, up);
+            post.transform.localScale = new Vector3(postWidth, postHeight, postDepth);
+
+            if (post.TryGetComponent(out BoxCollider postCollider))
+            {
+                Destroy(postCollider);
+            }
+
+            if (post.TryGetComponent(out MeshRenderer postRenderer))
+            {
+                postRenderer.sharedMaterial = ResolveRailMaterial();
+            }
+
+            postIndex++;
+        }
+    }
+
+    private float ComputeRailCenterHeightAtS(RailSpan span, float s, float beamCenterHeight)
+    {
+        float beamHalfHeight = Mathf.Max(0.01f, config.railBeamHeightMeters * 0.5f);
+        // Existing assets may deserialize new fields as 0; keep a visible default behavior.
+        float dropDistance = config.railEndDropDistanceMeters > 0.001f
+            ? config.railEndDropDistanceMeters
+            : 2.5f;
+        float clipDepth = config.railEndGroundClipDepthMeters > 0.0001f
+            ? config.railEndGroundClipDepthMeters
+            : 0.12f;
+
+        // Sink the full beam below ground at span tips.
+        float endCenterHeight = -(config.railBeamHeightMeters + clipDepth);
+        float tLinear = RailPlacementUtility.ComputeEndDrop01(s, span.startS, span.endS, dropDistance);
+        float tSmoothed = tLinear * tLinear * (3f - 2f * tLinear);
+        return Mathf.Lerp(endCenterHeight, beamCenterHeight, tSmoothed);
+    }
+
     private ProfilePoint[] BuildProfile(float halfRoadWidth)
     {
         float shoulderWidth = Mathf.Max(0f, config.shoulderWidth);
@@ -572,6 +774,56 @@ public class RoadStreamGenerator : MonoBehaviour
         }
 
         return points.ToArray();
+    }
+
+    private Material ResolveRailMaterial()
+    {
+        if (railMaterial != null)
+        {
+            return railMaterial;
+        }
+
+        if (runtimeRailFallbackMaterial != null)
+        {
+            return runtimeRailFallbackMaterial;
+        }
+
+        Shader shader = Shader.Find("Universal Render Pipeline/Lit");
+        if (shader == null)
+        {
+            shader = Shader.Find("Standard");
+        }
+
+        runtimeRailFallbackMaterial = shader != null
+            ? new Material(shader)
+            : new Material(Shader.Find("Sprites/Default"));
+        runtimeRailFallbackMaterial.name = "Runtime_Rail_MatteGrey";
+        runtimeRailFallbackMaterial.hideFlags = HideFlags.DontSave;
+
+        // Matte light-grey metal fallback look.
+        Color matteGrey = new Color(0.74f, 0.76f, 0.78f, 1f);
+        if (runtimeRailFallbackMaterial.HasProperty("_BaseColor"))
+        {
+            runtimeRailFallbackMaterial.SetColor("_BaseColor", matteGrey);
+        }
+        if (runtimeRailFallbackMaterial.HasProperty("_Color"))
+        {
+            runtimeRailFallbackMaterial.SetColor("_Color", matteGrey);
+        }
+        if (runtimeRailFallbackMaterial.HasProperty("_Metallic"))
+        {
+            runtimeRailFallbackMaterial.SetFloat("_Metallic", 0.75f);
+        }
+        if (runtimeRailFallbackMaterial.HasProperty("_Smoothness"))
+        {
+            runtimeRailFallbackMaterial.SetFloat("_Smoothness", 0.18f);
+        }
+        if (runtimeRailFallbackMaterial.HasProperty("_Glossiness"))
+        {
+            runtimeRailFallbackMaterial.SetFloat("_Glossiness", 0.18f);
+        }
+
+        return runtimeRailFallbackMaterial;
     }
 
     private Vector2[] BuildProfileNormals(ProfilePoint[] profile)
@@ -1118,7 +1370,8 @@ public class RoadStreamGenerator : MonoBehaviour
                 bankAngle = bankAngle,
                 bankTargetAngle = targetBankAngle,
                 turnRateDegPerMeter = turnRateDegPerMeter,
-                slopeAngleDeg = slopeAngleDeg
+                slopeAngleDeg = slopeAngleDeg,
+                isDesignedPiece = currentPieceType == PieceType.Designed
             };
 
             samples.Add(next);
@@ -1152,7 +1405,8 @@ public class RoadStreamGenerator : MonoBehaviour
             bankAngle = 0f,
             bankTargetAngle = 0f,
             turnRateDegPerMeter = 0f,
-            slopeAngleDeg = 0f
+            slopeAngleDeg = 0f,
+            isDesignedPiece = false
         };
         samples.Add(first);
         ResetPieceState();

@@ -68,6 +68,23 @@ MonoBehaviour:
   bankTurnRateDeadzone: 0.08
   bankTargetResponse: 0.08
   bankChangeRateDegPerMeter: 1
+  railsOnlyOnDesignedPieces: 1
+  minCurvatureForRail: 0.01
+  minRailSpanLengthMeters: 6
+  railLateralOffsetMeters: 0.25
+  railHeightMeters: 0.8
+  railEndTaperMeters: 1
+  railEndDropDistanceMeters: 4
+  railEndGroundClipDepthMeters: 0.08
+  railSampleSpacingMeters: 1
+  railBeamDepthMeters: 0.24
+  railBeamHeightMeters: 0.35
+  railBeamFlangeThicknessMeters: 0.055
+  railPostSpacingMeters: 3
+  railPostWidthMeters: 0.2
+  railPostDepthMeters: 0.15
+  railPostHeightMeters: 0.8
+  railPostEmbedDepthMeters: 0.1
   drawGizmos: 1
   gizmoFrameStride: 8
   gizmoFrameLength: 1.5
