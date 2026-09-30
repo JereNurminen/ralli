@@ -4,12 +4,13 @@ using UnityEngine;
 // The police: after a delay a van appears on the road behind the player and chases at a constant
 // speed along the road. It never dodges; traffic it touches is knocked loose and shoved aside.
 // Near the player it steers onto the player's line and rams them in a loop: chase, ram (drive into
-// the player, plus an exaggerated random shove), back off for a moment, repeat. Assumes the van is
-// behind the player. When the player finishes the stage, the van stops chasing and drives straight
+// the player, plus an exaggerated random shove), back off for a moment, repeat. Rams only hurt; the
+// player is caught when the van gets all the way past them (a missed ram carries on into a pass),
+// after which it brakes hard to a stop ahead of them. Assumes the van starts behind the player. When the player finishes the stage, the van stops chasing and drives straight
 // on in the left lane, past the player and off the road's dead end into the woods, and vanishes.
 public class PoliceChaser : MonoBehaviour
 {
-    private enum ChaseState { Chasing, Ramming, BackingOff }
+    private enum ChaseState { Chasing, Ramming, BackingOff, Stopping }
 
     private const float PlayerHalfLength = 1.9f;
     private const float PlayerHalfWidth = 0.8f;
@@ -31,13 +32,14 @@ public class PoliceChaser : MonoBehaviour
     private bool passingThrough;
     private readonly Collider[] shoveBuffer = new Collider[16];
 
-    // First contact with the player (the future lose-condition hook).
+    // The van got past the player: the lose condition.
     public event Action CaughtPlayer;
     // Every ram that lands.
     public event Action RammedPlayer;
     public bool IsChasing => van != null;
     public PoliceLights Lights { get; private set; }
     public bool HasCaughtPlayer { get; private set; }
+    public Transform Van => van != null ? van.transform : null;
     // Bumper-to-bumper distance to the player along the road (m); meaningful while chasing.
     public float GapToPlayer { get; private set; }
 
@@ -182,6 +184,14 @@ public class PoliceChaser : MonoBehaviour
             playerSpeed = Mathf.Max(0f, Vector3.Dot(playerBody.linearVelocity, roadForward));
         }
 
+        // Van's rear past the player's front: caught.
+        if (state != ChaseState.Stopping && GapToPlayer < -(config.vanSize.z + PlayerHalfLength * 2f))
+        {
+            state = ChaseState.Stopping;
+            HasCaughtPlayer = true;
+            CaughtPlayer?.Invoke();
+        }
+
         float chaseSpeed = config.chaseSpeedKph / 3.6f;
         float targetSpeed = chaseSpeed;
         float acceleration = config.accelerationMps2;
@@ -197,15 +207,10 @@ public class PoliceChaser : MonoBehaviour
             case ChaseState.Ramming:
                 targetSpeed = playerSpeed + config.ramClosingSpeedKph / 3.6f;
                 bool lateralOverlap = Mathf.Abs(playerLateral - lateralOffset) < config.vanSize.x * 0.5f + PlayerHalfWidth;
-                if (GapToPlayer <= config.ramContactGap && lateralOverlap)
+                // Once alongside (a missed ram) it no longer rams; it keeps closing and passes.
+                if (GapToPlayer <= config.ramContactGap && GapToPlayer > -1f && lateralOverlap)
                 {
                     LandRam(roadForward, roadRight);
-                }
-                else if (GapToPlayer < -1f)
-                {
-                    // Missed and drew alongside: drop back behind the player and try again.
-                    state = ChaseState.BackingOff;
-                    backoffTimer = config.backoffTime;
                 }
 
                 break;
@@ -219,6 +224,10 @@ public class PoliceChaser : MonoBehaviour
                 }
 
                 break;
+            case ChaseState.Stopping:
+                targetSpeed = 0f;
+                acceleration = config.caughtBrakeMps2;
+                break;
         }
 
         if (vanLights != null)
@@ -229,11 +238,15 @@ public class PoliceChaser : MonoBehaviour
         speedMps = Mathf.MoveTowards(speedMps, targetSpeed, acceleration * deltaTime);
         s += speedMps * deltaTime;
 
-        // Blend from its own lane onto the player's line as it closes in, staying on the road.
-        float homing = 1f - Mathf.Clamp01(GapToPlayer / Mathf.Max(1f, config.homingDistance));
-        float edge = road.GetRoadWidth() * 0.5f - config.vanSize.x * 0.5f;
-        float lateralTarget = Mathf.Clamp(Mathf.Lerp(GetLaneOffset(), playerLateral, homing), -edge, edge);
-        lateralOffset = Mathf.MoveTowards(lateralOffset, lateralTarget, config.lateralSpeed * deltaTime);
+        // Blend from its own lane onto the player's line as it closes in, staying on the road. From
+        // alongside onward it holds its line.
+        if (GapToPlayer > -1f && state != ChaseState.Stopping)
+        {
+            float homing = 1f - Mathf.Clamp01(GapToPlayer / Mathf.Max(1f, config.homingDistance));
+            float edge = road.GetRoadWidth() * 0.5f - config.vanSize.x * 0.5f;
+            float lateralTarget = Mathf.Clamp(Mathf.Lerp(GetLaneOffset(), playerLateral, homing), -edge, edge);
+            lateralOffset = Mathf.MoveTowards(lateralOffset, lateralTarget, config.lateralSpeed * deltaTime);
+        }
 
         MoveAlongRoad(false);
     }
@@ -271,11 +284,6 @@ public class PoliceChaser : MonoBehaviour
         state = ChaseState.BackingOff;
         backoffTimer = config.backoffTime;
         RammedPlayer?.Invoke();
-        if (!HasCaughtPlayer)
-        {
-            HasCaughtPlayer = true;
-            CaughtPlayer?.Invoke();
-        }
     }
 
     // Right-hand lane center, like traffic driving the player's direction.

@@ -120,6 +120,14 @@ public class InCarCamera : MonoBehaviour
     private float manualYaw;
     private float manualYawVelocity;
     private float noiseSeed;
+    private Transform focus;
+
+    // Turns the head toward this (e.g. the police van that caught the player), overriding the
+    // road look and manual look. Null returns to normal.
+    public void LookAt(Transform newFocus)
+    {
+        focus = newFocus;
+    }
 
     private void Start()
     {
@@ -235,6 +243,15 @@ public class InCarCamera : MonoBehaviour
     // Turn toward a point on the road ahead, fading out at low speed, off the road and in spins.
     private void UpdateLook(float deltaTime)
     {
+        if (focus != null)
+        {
+            Vector3 toFocus = Vector3.ProjectOnPlane(focus.position - transform.position, target.up);
+            float focusYaw = Vector3.SignedAngle(Vector3.ProjectOnPlane(target.forward, target.up), toFocus, target.up);
+            lookYaw = Mathf.SmoothDamp(lookYaw, focusYaw, ref lookYawVelocity, lookSmoothTime, Mathf.Infinity, deltaTime);
+            manualYaw = Mathf.SmoothDamp(manualYaw, 0f, ref manualYawVelocity, manualLookSmoothTime, Mathf.Infinity, deltaTime);
+            return;
+        }
+
         float lookTarget = GetRoadLookYaw();
 
         float manualTarget = 0f;

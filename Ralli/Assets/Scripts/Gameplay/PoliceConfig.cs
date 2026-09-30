@@ -41,6 +41,10 @@ public class PoliceConfig : ScriptableObject
     [Tooltip("Braking while backing off (m/s²).")]
     public float backoffBrakeMps2 = 12f;
 
+    [Header("Caught")]
+    [Tooltip("Once the van has got past the player (caught), it brakes to a stop this hard (m/s²).")]
+    public float caughtBrakeMps2 = 30f;
+
     [Header("Stage Finish")]
     [Tooltip("After the player finishes, the van drives on past the road's dead end and vanishes this far into the woods (m).")]
     public float passThroughVanishDistance = 60f;
