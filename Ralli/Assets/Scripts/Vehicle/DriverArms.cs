@@ -17,6 +17,10 @@ public class DriverArms : MonoBehaviour
         public Transform hand;
         public Quaternion upperRest;
         public Quaternion lowerRest;
+        public Quaternion handRest;
+        // Forearm twist bones (if the rig has them), ordered elbow → wrist.
+        public Transform[] twistBones;
+        public Quaternion[] twistRest;
         public Transform[] fingers;
         public Quaternion[] fingerRest;
         public bool[] isThumb;
@@ -65,6 +69,8 @@ public class DriverArms : MonoBehaviour
     [Tooltip("Finger curl around each finger bone's local X. Flip the sign if fingers bend backwards.")]
     [SerializeField] private float fingerCurlDegrees = 55f;
     [SerializeField] private float thumbCurlDegrees = 20f;
+    [Tooltip("Share of the forearm roll taken at the elbow end. Twist bones and the wrist take the rest progressively.")]
+    [Range(0f, 1f)] [SerializeField] private float forearmTwistShare = 0.3f;
 
     [Header("Handbrake")]
     [SerializeField] private string handbrakePartName = "HandBrake";
@@ -208,12 +214,62 @@ public class DriverArms : MonoBehaviour
         Vector3 pole = shoulderWorld + transform.TransformDirection(new Vector3(side * elbowPole.x, elbowPole.y, elbowPole.z));
         SolveTwoBoneIK(arm.upper, arm.lower, arm.hand, target, pole);
 
-        arm.hand.rotation = handRotation * Quaternion.Euler(handRotationOffset);
+        ApplyForearmTwist(arm, handRotation * Quaternion.Euler(handRotationOffset));
         for (int i = 0; i < arm.fingers.Length; i++)
         {
             float curl = arm.isThumb[i] ? thumbCurlDegrees : fingerCurlDegrees;
             arm.fingers[i].localRotation = arm.fingerRest[i] * Quaternion.Euler(curl, 0f, 0f);
         }
+    }
+
+    // Rolls the forearm about its own length so the hand's twist is spread from elbow to wrist
+    // instead of all happening at the wrist. Rolling about that axis never moves the wrist.
+    private void ApplyForearmTwist(Arm arm, Quaternion desiredHand)
+    {
+        arm.hand.localRotation = arm.handRest;
+        for (int i = 0; i < arm.twistBones.Length; i++)
+        {
+            arm.twistBones[i].localRotation = arm.twistRest[i];
+        }
+
+        Vector3 axis = (arm.hand.position - arm.lower.position).normalized;
+        float roll = GetTwistDegrees(desiredHand * Quaternion.Inverse(arm.hand.rotation), axis);
+
+        float forearmRoll = roll * forearmTwistShare;
+        arm.lower.rotation = Quaternion.AngleAxis(forearmRoll, axis) * arm.lower.rotation;
+
+        // Twist bones ramp from the forearm share up toward the full roll.
+        int count = arm.twistBones.Length;
+        for (int i = 0; i < count; i++)
+        {
+            float share = Mathf.Lerp(forearmTwistShare, 1f, (i + 1f) / (count + 1f));
+            float inherited = GetInheritedTwistShare(arm, arm.twistBones[i].parent, count);
+            arm.twistBones[i].rotation = Quaternion.AngleAxis(roll * (share - inherited), axis) * arm.twistBones[i].rotation;
+        }
+
+        arm.hand.rotation = desiredHand;
+    }
+
+    // Roll share already applied to a twist bone through its parent chain.
+    private float GetInheritedTwistShare(Arm arm, Transform parent, int count)
+    {
+        for (int i = count - 1; i >= 0; i--)
+        {
+            if (parent == arm.twistBones[i])
+            {
+                return Mathf.Lerp(forearmTwistShare, 1f, (i + 1f) / (count + 1f));
+            }
+        }
+
+        return forearmTwistShare;
+    }
+
+    // Angle (degrees, -180..180) of the part of a rotation that spins about the given axis.
+    private static float GetTwistDegrees(Quaternion rotation, Vector3 axis)
+    {
+        float along = rotation.x * axis.x + rotation.y * axis.y + rotation.z * axis.z;
+        float angle = 2f * Mathf.Atan2(along, rotation.w) * Mathf.Rad2Deg;
+        return Mathf.DeltaAngle(0f, angle);
     }
 
     // Classic analytic two-bone IK: place the elbow on the circle allowed by the bone lengths,
@@ -267,6 +323,16 @@ public class DriverArms : MonoBehaviour
             }
         }
 
+        var twists = new System.Collections.Generic.List<Transform>();
+        for (int i = 0; i < 4; i++)
+        {
+            Transform twist = FindDeep(root, $"forearm.Twist{i}.{suffix}");
+            if (twist != null)
+            {
+                twists.Add(twist);
+            }
+        }
+
         var arm = new Arm
         {
             shoulder = shoulder,
@@ -275,6 +341,9 @@ public class DriverArms : MonoBehaviour
             hand = hand,
             upperRest = upper.localRotation,
             lowerRest = lower.localRotation,
+            handRest = hand.localRotation,
+            twistBones = twists.ToArray(),
+            twistRest = new Quaternion[twists.Count],
             fingers = fingers.ToArray(),
             isThumb = thumbs.ToArray(),
             fingerRest = new Quaternion[fingers.Count]
@@ -283,6 +352,11 @@ public class DriverArms : MonoBehaviour
         for (int i = 0; i < arm.fingers.Length; i++)
         {
             arm.fingerRest[i] = arm.fingers[i].localRotation;
+        }
+
+        for (int i = 0; i < arm.twistBones.Length; i++)
+        {
+            arm.twistRest[i] = arm.twistBones[i].localRotation;
         }
 
         Transform middle = FindDeep(root, $"finger_middle1.{suffix}");
