@@ -46,19 +46,24 @@ public class PoliceConfig : ScriptableObject
     public float shovePadding = 0.3f;
 
     [Header("Lights")]
-    [Tooltip("Strobe cycles per second (each cycle: red double-flash, then blue double-flash).")]
-    public float strobeFrequency = 1.8f;
-    [Tooltip("Brightness of the red/blue strobe lights that light up the surroundings.")]
-    public float strobeLightIntensity = 60f;
-    [Tooltip("Reach of the strobe lights (m).")]
-    public float strobeLightRange = 30f;
-    [Tooltip("Glow of the roof light bar (HDR multiplier; bloom makes it flare).")]
+    [Tooltip("Rotating beacon speed (turns per second). Red and blue spin half a turn apart.")]
+    public float beaconTurnsPerSecond = 1.5f;
+    [Tooltip("Brightness and reach (m) of the rotating beacon beams.")]
+    public float beaconIntensity = 80f;
+    public float beaconRange = 35f;
+    [Tooltip("Width of each beacon beam (degrees).")]
+    public float beaconBeamAngle = 40f;
+    [Tooltip("Dim red/blue fill around the van between sweeps (fraction of beacon brightness).")]
+    [Range(0f, 1f)] public float beaconFillAmount = 0.12f;
+    [Tooltip("Glow of the roof light bar when a beam faces the viewer (HDR multiplier; bloom makes it flare).")]
     public float lightBarEmission = 16f;
     [ColorUsage(false)] public Color strobeRed = new Color(1f, 0.05f, 0.05f);
     [ColorUsage(false)] public Color strobeBlue = new Color(0.1f, 0.25f, 1f);
     [Tooltip("Van headlight brightness and reach (m).")]
     public float headlightIntensity = 40f;
     public float headlightRange = 70f;
+    [Tooltip("How visible the fake light beams are (beacons and headlights). 0 = off.")]
+    [Range(0f, 1f)] public float beamVisibility = 0.25f;
 
     [Header("Visuals")]
     [Tooltip("Van body size (x = width, y = height, z = length). Roughly a VW Transporter.")]
