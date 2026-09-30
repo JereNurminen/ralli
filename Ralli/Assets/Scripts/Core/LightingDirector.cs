@@ -16,6 +16,10 @@ public class LightingDirector : MonoBehaviour
     [SerializeField] private float northYaw;
     [Tooltip("Tone mapping style. Neutral keeps colors; ACES is filmic but desaturates and darkens.")]
     [SerializeField] private TonemappingMode tonemapping = TonemappingMode.Neutral;
+    [Tooltip("How lights (headlights, beacons) fade with distance on road, ground and foliage. 1 = physical; lower = reach farther without burning out up close.")]
+    [Range(0.3f, 1f)] [SerializeField] private float lightFalloff = 0.6f;
+
+    private static readonly int LightFalloffId = Shader.PropertyToID("_RalliLightFalloff");
 
     public LightingPreset ActivePreset => presets != null && presets.Length > 0
         ? presets[Mathf.Clamp(activePreset, 0, presets.Length - 1)]
@@ -58,6 +62,8 @@ public class LightingDirector : MonoBehaviour
         RenderSettings.ambientSkyColor = preset.ambientSky;
         RenderSettings.ambientEquatorColor = preset.ambientEquator;
         RenderSettings.ambientGroundColor = preset.ambientGround;
+        Shader.SetGlobalFloat(LightFalloffId, lightFalloff);
+
         // Fog will come from a weather system; the time of day never adds it.
         RenderSettings.fog = false;
         RenderSettings.skybox = preset.skybox;

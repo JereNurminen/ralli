@@ -7,18 +7,18 @@ public class CarHeadlights : MonoBehaviour
     [Tooltip("Headlight position relative to the car pivot (m). X is mirrored for the other side.")]
     [SerializeField] private Vector3 offset = new Vector3(0.6f, -0.35f, 1.9f);
     [Tooltip("Downward tilt (degrees).")]
-    [SerializeField] private float pitch = 4f;
+    [SerializeField] private float pitch = 2f;
     [SerializeField] private Color color = new Color(1f, 0.93f, 0.8f);
-    [SerializeField] private float intensity = 30f;
-    [SerializeField] private float range = 70f;
-    [SerializeField] private float spotAngle = 60f;
-    [SerializeField] private float innerSpotAngle = 35f;
+    [SerializeField] private float intensity = 40f;
+    [SerializeField] private float range = 200f;
+    [SerializeField] private float spotAngle = 55f;
+    [SerializeField] private float innerSpotAngle = 22f;
     [Tooltip("Only one headlight casts shadows, to keep the cost down.")]
     [SerializeField] private bool castShadows = true;
     [Tooltip("How visible the fake light beams are. 0 = off.")]
-    [Range(0f, 1f)] [SerializeField] private float beamVisibility = 0.08f;
+    [Range(0f, 1f)] [SerializeField] private float beamVisibility = 0.03f;
     [Tooltip("Beam length as a fraction of the range.")]
-    [Range(0.1f, 1f)] [SerializeField] private float beamLength = 0.4f;
+    [Range(0.1f, 1f)] [SerializeField] private float beamLength = 0.25f;
 
     private void Start()
     {

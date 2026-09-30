@@ -78,7 +78,7 @@ public class TrafficConfig : ScriptableObject
     [Range(0, 8)] public int realHeadlightCount = 4;
     [Tooltip("Only cars ahead of the player within this distance along the road (m) qualify.")]
     public float realHeadlightMaxDistance = 150f;
-    public float realHeadlightIntensity = 25f;
+    public float realHeadlightIntensity = 8f;
     public float realHeadlightRange = 45f;
     public float realHeadlightAngle = 70f;
     [Tooltip("Fade time (s) when a light moves between cars, so it never pops.")]

@@ -15,18 +15,18 @@ RenderSettings:
   m_ObjectHideFlags: 0
   serializedVersion: 10
   m_Fog: 0
-  m_FogColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
+  m_FogColor: {r: 0.025, g: 0.03, b: 0.045, a: 1}
   m_FogMode: 3
-  m_FogDensity: 0.01
+  m_FogDensity: 0.012
   m_LinearFogStart: 0
   m_LinearFogEnd: 300
-  m_AmbientSkyColor: {r: 0.212, g: 0.227, b: 0.259, a: 1}
-  m_AmbientEquatorColor: {r: 0.114, g: 0.125, b: 0.133, a: 1}
-  m_AmbientGroundColor: {r: 0.047, g: 0.043, b: 0.035, a: 1}
+  m_AmbientSkyColor: {r: 0.035, g: 0.045, b: 0.08, a: 1}
+  m_AmbientEquatorColor: {r: 0.025, g: 0.03, b: 0.04, a: 1}
+  m_AmbientGroundColor: {r: 0.01, g: 0.01, b: 0.012, a: 1}
   m_AmbientIntensity: 1
-  m_AmbientMode: 0
+  m_AmbientMode: 1
   m_SubtractiveShadowColor: {r: 0.42, g: 0.478, b: 0.627, a: 1}
-  m_SkyboxMaterial: {fileID: 2100000, guid: 92aadc51c159d4d6ab7576f63c28a58e, type: 2}
+  m_SkyboxMaterial: {fileID: 0}
   m_HaloStrength: 0.5
   m_FlareStrength: 1
   m_FlareFadeSpeed: 3
@@ -311,8 +311,8 @@ Camera:
   m_GameObject: {fileID: 330585543}
   m_Enabled: 1
   serializedVersion: 2
-  m_ClearFlags: 1
-  m_BackGroundColor: {r: 0.19215687, g: 0.3019608, b: 0.4745098, a: 0}
+  m_ClearFlags: 2
+  m_BackGroundColor: {r: 0.02, g: 0.025, b: 0.04, a: 1}
   m_projectionMatrixMode: 1
   m_GateFitMode: 2
   m_FOVAxisMode: 0
@@ -450,10 +450,13 @@ MonoBehaviour:
   shakeAmount: 0.04
   shakeRotation: 5
   shakeFrequency: 22
-  slideFollow: 0.5
-  maxSlideLook: 25
-  slideLookMinSpeedKph: 15
-  spinFadeDegrees: {x: 35, y: 75}
+  roadLookFollow: 0.6
+  maxRoadLook: 20
+  roadLookAheadTime: 1
+  roadLookAheadRange: {x: 8, y: 40}
+  maxRoadDistance: 30
+  roadLookMinSpeedKph: 10
+  roadLookFadeDegrees: {x: 45, y: 90}
   steerLook: 3
   lookSmoothTime: 0.25
   maxManualLook: 50
@@ -487,8 +490,8 @@ Light:
   m_Enabled: 1
   serializedVersion: 11
   m_Type: 1
-  m_Color: {r: 1, g: 1, b: 1, a: 1}
-  m_Intensity: 2
+  m_Color: {r: 0.55, g: 0.65, b: 1, a: 1}
+  m_Intensity: 0.12
   m_Range: 10
   m_SpotAngle: 30
   m_InnerSpotAngle: 21.80208
@@ -497,7 +500,7 @@ Light:
     m_Type: 2
     m_Resolution: -1
     m_CustomResolution: -1
-    m_Strength: 1
+    m_Strength: 0.6
     m_Bias: 0.05
     m_NormalBias: 0.4
     m_NearPlane: 0.2
@@ -550,7 +553,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 410087039}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.40821788, y: -0.23456968, z: 0.10938163, w: 0.8754261}
+  m_LocalRotation: {x: -0.23824657, y: 0.16849022, z: -0.04200933, w: -0.9555548}
   m_LocalPosition: {x: 0, y: 3, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
@@ -2122,6 +2125,22 @@ MonoBehaviour:
   musicGroup: {fileID: 24300004, guid: e6b2c624156b4b168952112aaa1c9d39, type: 2}
   volumeParameter: MusicVolume
   bassGainParameter: MusicBassGain
+  baseVolumeDb: -4
+  mixSmoothTime: 0.8
+  evaluateInterval: 0.3
+  speedBoostRangeKph: {x: 100, y: 150}
+  highSpeedBoostDb: 2
+  goodDrivingBassDb: 3
+  cleanStreakSeconds: 8
+  cleanStreakMinSpeedKph: 70
+  impactSeverityThresholds: {x: 5, y: 12}
+  significantDuckDb: -10
+  majorDuckDb: -20
+  duckAttackTime: 0.05
+  significantRecoverTime: 1.2
+  majorHoldTime: 0.5
+  majorRecoverTime: 3
+  finishFadeTime: 3
 --- !u!1 &1993720500
 GameObject:
   m_ObjectHideFlags: 0
@@ -2161,7 +2180,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1993720500}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 121d9f43ae2e4a46a7cfe3218716509d, type: 3}
   m_Name: 
@@ -2180,6 +2199,16 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3a97a4ebcc694413828ba3b5e8c22a9a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  offset: {x: 0.6, y: -0.35, z: 1.9}
+  pitch: 2
+  color: {r: 1, g: 0.93, b: 0.8, a: 1}
+  intensity: 40
+  range: 200
+  spotAngle: 55
+  innerSpotAngle: 22
+  castShadows: 1
+  beamVisibility: 0.03
+  beamLength: 0.25
 --- !u!114 &1993720601
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2193,6 +2222,10 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   police: {fileID: 1993720502}
+  startDistance: 80
+  maxIntensityBoost: 0.3
+  colorStrength: 0.85
+  flashFadeTime: 0.06
 --- !u!1 &1993720700
 GameObject:
   m_ObjectHideFlags: 0
@@ -2242,10 +2275,11 @@ MonoBehaviour:
   - {fileID: 11400000, guid: dc05c6aafc8b487c8f8640e52005ab36, type: 2}
   - {fileID: 11400000, guid: aca6a832ff0749719cee291cd4c3a6d4, type: 2}
   - {fileID: 11400000, guid: d6e7e0a61deb4c4dbfea31da314bf238, type: 2}
-  activePreset: 2
+  activePreset: 3
   sun: {fileID: 410087040}
   volume: {fileID: 832575518}
   northYaw: 0
+  tonemapping: 0
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
