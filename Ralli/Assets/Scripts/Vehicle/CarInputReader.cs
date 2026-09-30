@@ -6,7 +6,7 @@ public class CarInputReader : MonoBehaviour
     public float Throttle { get; private set; }
     public float Brake { get; private set; }
     public bool Handbrake { get; private set; }
-    public bool Boost { get; private set; }
+    public bool Overdrive { get; private set; }
 
     private InputSystem_Actions actions;
 
@@ -28,6 +28,6 @@ public class CarInputReader : MonoBehaviour
         Throttle = actions.Driving.Throttle.ReadValue<float>();
         Brake = actions.Driving.Brake.ReadValue<float>();
         Handbrake = actions.Driving.Handbrake.IsPressed();
-        Boost = actions.Driving.Boost.IsPressed();
+        Overdrive = actions.Driving.Boost.IsPressed(); // Input action is still named "Boost".
     }
 }
