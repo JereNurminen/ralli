@@ -7,8 +7,9 @@ public class TrafficStreamManager : MonoBehaviour
     [SerializeField] private TrafficConfig config;
     [SerializeField] private Transform vehicleRoot;
 
-    private readonly Dictionary<int, List<TrafficVehicle>> chunkVehicles = new Dictionary<int, List<TrafficVehicle>>();
+    private readonly List<TrafficVehicle> vehicles = new List<TrafficVehicle>();
     private readonly HashSet<int> spawnedChunks = new HashSet<int>();
+    private CarController player;
     private MaterialPropertyBlock propertyBlock;
     private Material trafficMaterial;
 
@@ -19,10 +20,8 @@ public class TrafficStreamManager : MonoBehaviour
             roadStream = FindFirstObjectByType<RoadStreamGenerator>();
         }
 
-        if (propertyBlock == null)
-        {
-            propertyBlock = new MaterialPropertyBlock();
-        }
+        player = FindFirstObjectByType<CarController>();
+        propertyBlock = new MaterialPropertyBlock();
 
         if (vehicleRoot == null)
         {
@@ -62,22 +61,10 @@ public class TrafficStreamManager : MonoBehaviour
 
     private void FixedUpdate()
     {
-        if (chunkVehicles.Count == 0)
+        float deltaTime = Time.fixedDeltaTime;
+        for (int i = 0; i < vehicles.Count; i++)
         {
-            return;
-        }
-
-        float dt = Time.fixedDeltaTime;
-        foreach (KeyValuePair<int, List<TrafficVehicle>> pair in chunkVehicles)
-        {
-            List<TrafficVehicle> vehicles = pair.Value;
-            for (int i = 0; i < vehicles.Count; i++)
-            {
-                if (vehicles[i] != null)
-                {
-                    vehicles[i].Tick(dt);
-                }
-            }
+            vehicles[i].Tick(deltaTime);
         }
     }
 
@@ -103,39 +90,26 @@ public class TrafficStreamManager : MonoBehaviour
         }
 
         System.Random rng = new System.Random((roadStream.GetSeed() * 83492791) ^ (chunkIndex * 19349663));
-        var created = new List<TrafficVehicle>(count);
-        var lanePositions = new Dictionary<int, List<float>>
-        {
-            { -1, new List<float>(count) },
-            { 1, new List<float>(count) }
-        };
-
+        var forwardLane = new List<float>(count);
+        var oncomingLane = new List<float>(count);
+        int created = 0;
         int attempts = count * 8;
-        while (created.Count < count && attempts-- > 0)
+        while (created < count && attempts-- > 0)
         {
-            float t = (float)rng.NextDouble();
-            float s = Mathf.Lerp(startS + 3f, endS - 3f, t);
-            bool sameDirection = rng.NextDouble() < Mathf.Clamp01(config.sameDirectionLaneChance);
-            int laneSign = sameDirection ? 1 : -1;
-            int directionSign = sameDirection ? 1 : -1;
-
-            if (!IsLaneSpacingValid(lanePositions[laneSign], s, Mathf.Max(2f, config.sameLaneMinSpacing)))
+            float s = Mathf.Lerp(startS + 3f, endS - 3f, (float)rng.NextDouble());
+            bool forward = rng.NextDouble() < Mathf.Clamp01(config.sameDirectionLaneChance);
+            List<float> lane = forward ? forwardLane : oncomingLane;
+            if (!IsLaneSpacingValid(lane, s, Mathf.Max(2f, config.sameLaneMinSpacing)))
             {
                 continue;
             }
 
             float speedKph = Mathf.Max(10f, config.trafficSpeedKph + ((float)rng.NextDouble() * 2f - 1f) * Mathf.Max(0f, config.speedVarianceKph));
-            Color bodyColor = GenerateTrafficColor(rng);
-            TrafficVehicle vehicle = CreateBoxVehicle($"Traffic_{chunkIndex}_{created.Count:00}", bodyColor);
-            vehicle.Initialize(roadStream, config, s, laneSign, directionSign, speedKph);
-
-            lanePositions[laneSign].Add(s);
-            created.Add(vehicle);
-        }
-
-        if (created.Count > 0)
-        {
-            chunkVehicles[chunkIndex] = created;
+            TrafficVehicle vehicle = CreateBoxVehicle($"Traffic_{chunkIndex}_{created:00}", GenerateTrafficColor(rng));
+            vehicle.Initialize(roadStream, config, player, s, forward ? 1f : -1f, speedKph);
+            vehicles.Add(vehicle);
+            lane.Add(s);
+            created++;
         }
 
         spawnedChunks.Add(chunkIndex);
@@ -147,8 +121,7 @@ public class TrafficStreamManager : MonoBehaviour
         go.name = name;
         go.transform.SetParent(vehicleRoot, true);
 
-        Vector3 size = config != null ? config.vehicleBoxSize : new Vector3(1.8f, 1.4f, 4.2f);
-        go.transform.localScale = size;
+        go.transform.localScale = config.vehicleBoxSize;
 
         if (trafficMaterial != null && go.TryGetComponent(out MeshRenderer renderer))
         {
@@ -165,7 +138,7 @@ public class TrafficStreamManager : MonoBehaviour
 
         rb.isKinematic = true;
         rb.useGravity = false;
-        rb.mass = config != null ? Mathf.Max(100f, config.vehicleMassKg) : 1100f;
+        rb.mass = Mathf.Max(100f, config.vehicleMassKg);
         rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
 
         return go.AddComponent<TrafficVehicle>();
@@ -208,54 +181,23 @@ public class TrafficStreamManager : MonoBehaviour
 
     private void CullOutside(int minChunk, int maxChunk)
     {
-        if (chunkVehicles.Count == 0)
+        for (int i = vehicles.Count - 1; i >= 0; i--)
         {
-            return;
-        }
-
-        var rebuilt = new Dictionary<int, List<TrafficVehicle>>(chunkVehicles.Count);
-        foreach (KeyValuePair<int, List<TrafficVehicle>> pair in chunkVehicles)
-        {
-            List<TrafficVehicle> vehicles = pair.Value;
-            for (int i = 0; i < vehicles.Count; i++)
+            TrafficVehicle vehicle = vehicles[i];
+            int chunk = roadStream.GetChunkIndexForS(vehicle.CurrentS);
+            if (chunk < minChunk || chunk > maxChunk)
             {
-                TrafficVehicle vehicle = vehicles[i];
-                if (vehicle == null)
-                {
-                    continue;
-                }
-
-                int currentChunk = roadStream.GetChunkIndexForS(vehicle.CurrentS);
-                if (currentChunk < minChunk || currentChunk > maxChunk)
-                {
-                    Destroy(vehicle.gameObject);
-                    continue;
-                }
-
-                if (!rebuilt.TryGetValue(currentChunk, out List<TrafficVehicle> list))
-                {
-                    list = new List<TrafficVehicle>();
-                    rebuilt[currentChunk] = list;
-                }
-
-                list.Add(vehicle);
+                Destroy(vehicle.gameObject);
+                vehicles.RemoveAt(i);
             }
-        }
-
-        chunkVehicles.Clear();
-        foreach (KeyValuePair<int, List<TrafficVehicle>> pair in rebuilt)
-        {
-            chunkVehicles[pair.Key] = pair.Value;
         }
     }
 
     private static bool IsLaneSpacingValid(List<float> laneS, float candidateS, float minSpacing)
     {
-        float minSpacingSq = minSpacing * minSpacing;
         for (int i = 0; i < laneS.Count; i++)
         {
-            float d = laneS[i] - candidateS;
-            if (d * d < minSpacingSq)
+            if (Mathf.Abs(laneS[i] - candidateS) < minSpacing)
             {
                 return false;
             }
@@ -263,5 +205,4 @@ public class TrafficStreamManager : MonoBehaviour
 
         return true;
     }
-
 }

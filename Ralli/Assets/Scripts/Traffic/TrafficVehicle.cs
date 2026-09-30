@@ -1,37 +1,35 @@
 using UnityEngine;
 
+// A traffic car. Follows its lane along the road (kinematic) until it touches the player or
+// another traffic car, then is released to regular physics for the rest of its life.
 public class TrafficVehicle : MonoBehaviour
 {
     private const float KphToMps = 1f / 3.6f;
-    private const float DefaultProximityReleaseDistanceMeters = 0.5f;
-    private static readonly Color TrackFollowColor = new Color(0.15f, 0.9f, 0.2f, 1f);
+    private static readonly Color FollowingColor = new Color(0.15f, 0.9f, 0.2f, 1f);
     private static readonly Color BrakingColor = new Color(0.95f, 0.1f, 0.1f, 1f);
     private static readonly Color ReleasedColor = Color.black;
-    private static Material debugMarkerSharedMaterial;
+    private static Material debugMarkerMaterial;
 
     private RoadStreamGenerator road;
     private TrafficConfig config;
-    private CarController playerCar;
+    private CarController player;
     private Collider playerCollider;
     private Collider ownCollider;
     private Rigidbody rb;
-    private float laneSign;
-    private float directionSign;
+    // +1 drives along the road (the player's direction, right lane), -1 is oncoming (left lane).
+    private float direction;
     private float lateralOffset;
     private float targetSpeedMps;
     private float currentSpeedMps;
     private float currentS;
-    private bool isInitialized;
-    private bool isReleasedToPhysics;
-    private Transform debugMarker;
-    private MeshRenderer debugMarkerRenderer;
+    private float turnRateDegPerMeter;
+    private bool isReleased;
+    private bool isBraking;
+    private MeshRenderer debugMarker;
     private MaterialPropertyBlock debugMarkerBlock;
-    private readonly Collider[] trafficContactBuffer = new Collider[16];
+    private readonly Collider[] overlapBuffer = new Collider[16];
 
     public float CurrentS => currentS;
-    public float CurrentSpeedMps => currentSpeedMps;
-    public bool IsBraking { get; private set; }
-    public bool IsTrackFollowing => !isReleasedToPhysics;
 
     private void Awake()
     {
@@ -39,375 +37,222 @@ public class TrafficVehicle : MonoBehaviour
         ownCollider = GetComponent<Collider>();
     }
 
-    public void Initialize(
-        RoadStreamGenerator roadGenerator,
-        TrafficConfig trafficConfig,
-        float startS,
-        float laneSideSign,
-        float travelDirectionSign,
-        float initialSpeedKph)
+    public void Initialize(RoadStreamGenerator roadGenerator, TrafficConfig trafficConfig, CarController playerCar, float startS, float travelDirection, float speedKph)
     {
         road = roadGenerator;
         config = trafficConfig;
-        playerCar = FindFirstObjectByType<CarController>();
-        playerCollider = playerCar != null ? playerCar.GetComponent<Collider>() : null;
+        player = playerCar;
+        playerCollider = player != null ? player.GetComponent<Collider>() : null;
         currentS = startS;
-        laneSign = Mathf.Sign(laneSideSign);
-        directionSign = Mathf.Sign(travelDirectionSign);
-        if (Mathf.Abs(directionSign) < 0.5f)
-        {
-            directionSign = 1f;
-        }
-
-        targetSpeedMps = Mathf.Max(1f, initialSpeedKph) * KphToMps;
+        direction = travelDirection >= 0f ? 1f : -1f;
+        targetSpeedMps = Mathf.Max(1f, speedKph) * KphToMps;
         currentSpeedMps = targetSpeedMps;
-        lateralOffset = ComputeLaneOffset();
-        isInitialized = true;
-        isReleasedToPhysics = false;
-        IsBraking = false;
+        lateralOffset = GetLaneOffset();
 
-        EnsureDebugMarker();
-        UpdatePose();
-        UpdateDebugMarkerVisual();
+        CreateDebugMarker();
+        MoveToRoad();
+        UpdateDebugMarker();
     }
 
-    public void Tick(float dt)
+    public void Tick(float deltaTime)
     {
-        if (!isInitialized || road == null || config == null)
+        if (isReleased)
         {
             return;
         }
 
-        if (isReleasedToPhysics)
+        if (TryReleaseOnContact())
         {
-            UpdateReleasedPhysicsState();
-            UpdateDebugMarkerVisual();
             return;
         }
 
-        EvaluateTrafficContactRelease();
-        if (isReleasedToPhysics)
-        {
-            UpdateReleasedPhysicsState();
-            UpdateDebugMarkerVisual();
-            return;
-        }
+        float desiredSpeed = targetSpeedMps * GetCornerSpeedFactor();
+        isBraking = currentSpeedMps > desiredSpeed + 0.1f;
+        float rate = Mathf.Max(0.1f, isBraking ? config.brakingMps2 : config.accelerationMps2);
+        currentSpeedMps = Mathf.MoveTowards(currentSpeedMps, desiredSpeed, rate * deltaTime);
+        currentS += currentSpeedMps * direction * deltaTime;
 
-        EvaluateProximityRelease();
-        if (isReleasedToPhysics)
-        {
-            UpdateReleasedPhysicsState();
-            UpdateDebugMarkerVisual();
-            return;
-        }
-
-        float desiredSpeed = targetSpeedMps;
-        if (config.slowInCorners && road.TryGetRoadFrameAtS(currentS, out _, out _, out _, out _, out float turnRateDegPerMeter))
-        {
-            float absTurn = Mathf.Abs(turnRateDegPerMeter);
-            float t = Mathf.InverseLerp(
-                Mathf.Max(0.001f, config.cornerSlowStartTurnRateDegPerMeter),
-                Mathf.Max(config.cornerSlowStartTurnRateDegPerMeter + 0.001f, config.cornerSlowMaxTurnRateDegPerMeter),
-                absTurn
-            );
-            float cornerFactor = Mathf.Lerp(1f, Mathf.Clamp(config.cornerMinSpeedFactor, 0.2f, 1f), t);
-            desiredSpeed *= cornerFactor;
-        }
-
-        bool braking = currentSpeedMps > desiredSpeed + 0.1f;
-        float rate = braking ? Mathf.Max(0.1f, config.brakingMps2) : Mathf.Max(0.1f, config.accelerationMps2);
-        currentSpeedMps = Mathf.MoveTowards(currentSpeedMps, desiredSpeed, rate * dt);
-        IsBraking = braking;
-
-        currentS += currentSpeedMps * directionSign * dt;
-        UpdatePose();
-        UpdateDebugMarkerVisual();
+        MoveToRoad();
+        UpdateDebugMarker();
     }
 
-    private float ComputeLaneOffset()
+    // Lane center: a quarter of the usable road width from the centerline, on the travel side.
+    private float GetLaneOffset()
     {
-        if (road == null)
-        {
-            return 0f;
-        }
-
         float roadWidth = Mathf.Max(2f, road.GetRoadWidth());
-        float inset = config != null ? Mathf.Max(0f, config.laneShoulderInset) : 0f;
-        float effectiveWidth = Mathf.Max(1f, roadWidth - inset * 2f);
-        float laneCenter = effectiveWidth * 0.25f;
-        return laneCenter * laneSign;
+        float usableWidth = Mathf.Max(1f, roadWidth - Mathf.Max(0f, config.laneShoulderInset) * 2f);
+        return usableWidth * 0.25f * direction;
     }
 
-    private void UpdatePose()
+    private float GetCornerSpeedFactor()
     {
-        if (!road.TryGetRoadFrameAtS(currentS, out Vector3 pos, out Vector3 forward, out Vector3 right, out Vector3 up, out _))
+        if (!config.slowInCorners)
+        {
+            return 1f;
+        }
+
+        float start = Mathf.Max(0.001f, config.cornerSlowStartTurnRateDegPerMeter);
+        float end = Mathf.Max(start + 0.001f, config.cornerSlowMaxTurnRateDegPerMeter);
+        float t = Mathf.InverseLerp(start, end, Mathf.Abs(turnRateDegPerMeter));
+        return Mathf.Lerp(1f, Mathf.Clamp(config.cornerMinSpeedFactor, 0.2f, 1f), t);
+    }
+
+    // One road lookup per step: places the car and keeps the turn rate for the next corner check.
+    private void MoveToRoad()
+    {
+        if (!road.TryGetRoadFrameAtS(currentS, out Vector3 position, out Vector3 forward, out Vector3 right, out Vector3 up, out turnRateDegPerMeter))
         {
             return;
         }
 
         float halfHeight = Mathf.Max(0.1f, transform.localScale.y * 0.5f);
-        Vector3 lanePosition = pos + right * lateralOffset + up.normalized * halfHeight;
-        Vector3 facing = directionSign > 0f ? forward : -forward;
-        if (facing.sqrMagnitude < 0.0001f)
-        {
-            facing = transform.forward;
-        }
-
-        transform.SetPositionAndRotation(lanePosition, Quaternion.LookRotation(facing.normalized, up.normalized));
+        Vector3 lanePosition = position + right * lateralOffset + up * halfHeight;
+        transform.SetPositionAndRotation(lanePosition, Quaternion.LookRotation(forward * direction, up));
     }
 
-    private void EvaluateProximityRelease()
+    private bool TryReleaseOnContact()
     {
-        if (playerCar == null)
+        if (IsNearPlayer())
         {
-            return;
+            Release();
+            return true;
         }
 
-        float releaseDistance = config != null
-            ? Mathf.Max(0.05f, config.ragdollReleaseDistance)
-            : DefaultProximityReleaseDistanceMeters;
-
-        if (playerCollider == null)
+        TrafficVehicle other = FindTouchingTraffic();
+        if (other != null)
         {
-            playerCollider = playerCar.GetComponent<Collider>();
+            Release();
+            other.Release();
+            return true;
         }
 
-        if (ownCollider == null)
-        {
-            ownCollider = GetComponent<Collider>();
-        }
-
-        if (ownCollider != null && playerCollider != null)
-        {
-            Vector3 ownClosest = ownCollider.ClosestPoint(playerCar.transform.position);
-            Vector3 playerClosest = playerCollider.ClosestPoint(transform.position);
-            float proximityDistance = Vector3.Distance(ownClosest, playerClosest);
-            if (proximityDistance < releaseDistance)
-            {
-                ReleaseToPhysics();
-            }
-        }
-        else
-        {
-            float proximityDistance = Vector3.Distance(transform.position, playerCar.transform.position);
-            if (proximityDistance < releaseDistance)
-            {
-                ReleaseToPhysics();
-            }
-        }
+        return false;
     }
 
-    private void EvaluateTrafficContactRelease()
+    // Released just before touching, so the crash is a proper physics collision.
+    private bool IsNearPlayer()
+    {
+        if (player == null || playerCollider == null || ownCollider == null)
+        {
+            return false;
+        }
+
+        float releaseDistance = Mathf.Max(0.05f, config.ragdollReleaseDistance);
+        float broadPhase = releaseDistance + 6f;
+        if ((player.transform.position - transform.position).sqrMagnitude > broadPhase * broadPhase)
+        {
+            return false;
+        }
+
+        Vector3 ownClosest = ownCollider.ClosestPoint(player.transform.position);
+        Vector3 playerClosest = playerCollider.ClosestPoint(transform.position);
+        return Vector3.Distance(ownClosest, playerClosest) < releaseDistance;
+    }
+
+    // Kinematic cars get no collision events with each other, so overlaps are checked by hand.
+    private TrafficVehicle FindTouchingTraffic()
     {
         if (ownCollider == null)
         {
-            ownCollider = GetComponent<Collider>();
-        }
-
-        if (ownCollider == null)
-        {
-            return;
+            return null;
         }
 
         Bounds bounds = ownCollider.bounds;
-        Vector3 extents = bounds.extents * 1.02f;
-        int hitCount = Physics.OverlapBoxNonAlloc(
-            bounds.center,
-            extents,
-            trafficContactBuffer,
-            Quaternion.identity,
-            ~0,
-            QueryTriggerInteraction.Ignore
-        );
-
+        int hitCount = Physics.OverlapBoxNonAlloc(bounds.center, bounds.extents * 1.02f, overlapBuffer, Quaternion.identity, ~0, QueryTriggerInteraction.Ignore);
         for (int i = 0; i < hitCount; i++)
         {
-            Collider otherCollider = trafficContactBuffer[i];
-            if (otherCollider == null || otherCollider == ownCollider)
+            Collider other = overlapBuffer[i];
+            if (other == ownCollider || !other.TryGetComponent(out TrafficVehicle vehicle))
             {
                 continue;
             }
 
-            if (otherCollider.attachedRigidbody == rb)
+            Vector3 ownClosest = ownCollider.ClosestPoint(other.bounds.center);
+            Vector3 otherClosest = other.ClosestPoint(transform.position);
+            if ((ownClosest - otherClosest).sqrMagnitude <= 0.0025f)
             {
-                continue;
+                return vehicle;
             }
+        }
 
-            TrafficVehicle otherVehicle = otherCollider.GetComponentInParent<TrafficVehicle>();
-            if (otherVehicle == null || otherVehicle == this)
-            {
-                continue;
-            }
+        return null;
+    }
 
-            Vector3 ownClosest = ownCollider.ClosestPoint(otherCollider.bounds.center);
-            Vector3 otherClosest = otherCollider.ClosestPoint(transform.position);
-            float separationSq = (ownClosest - otherClosest).sqrMagnitude;
-            if (separationSq > 0.0025f) // 5 cm tolerance
-            {
-                continue;
-            }
-
-            ReleaseToPhysics();
-            otherVehicle.ReleaseToPhysics();
+    private void OnCollisionEnter(Collision collision)
+    {
+        Collider other = collision.collider;
+        if (player != null && other.GetComponentInParent<CarController>() == player)
+        {
+            Release();
             return;
+        }
+
+        TrafficVehicle otherVehicle = other.GetComponentInParent<TrafficVehicle>();
+        if (otherVehicle != null && otherVehicle != this)
+        {
+            Release();
+            otherVehicle.Release();
         }
     }
 
-    private void ReleaseToPhysics()
+    private void Release()
     {
-        if (isReleasedToPhysics)
+        if (isReleased)
         {
             return;
         }
 
-        isReleasedToPhysics = true;
-        IsBraking = false;
-
-        if (rb == null)
-        {
-            return;
-        }
-
+        isReleased = true;
+        isBraking = false;
         rb.isKinematic = false;
         rb.useGravity = true;
         rb.linearVelocity = transform.forward * currentSpeedMps;
         rb.angularVelocity = Vector3.zero;
         rb.linearDamping = 0.2f;
         rb.angularDamping = 0.3f;
-
-        UpdateDebugMarkerVisual();
+        UpdateDebugMarker();
     }
 
-    private void UpdateReleasedPhysicsState()
+    // Floating ball above the car: green = following its lane, red = braking, black = released.
+    private void CreateDebugMarker()
     {
-        if (rb == null)
-        {
-            return;
-        }
+        GameObject marker = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        marker.name = "StateMarker";
+        Destroy(marker.GetComponent<Collider>());
+        marker.transform.SetParent(transform, false);
+        marker.transform.localScale = Vector3.one * 0.35f;
+        marker.transform.localPosition = new Vector3(0f, Mathf.Max(0.1f, transform.localScale.y * 0.5f) + 0.9f, 0f);
 
-        IsBraking = false;
-        UpdateDebugMarkerVisual();
-    }
-
-    private void OnCollisionEnter(Collision collision)
-    {
-        if (collision == null)
-        {
-            return;
-        }
-
-        if (playerCar == null)
-        {
-            playerCar = FindFirstObjectByType<CarController>();
-        }
-
-        if (playerCar != null && collision.collider != null)
-        {
-            if (collision.collider.gameObject == playerCar.gameObject || collision.collider.GetComponentInParent<CarController>() == playerCar)
-            {
-                ReleaseToPhysics();
-                return;
-            }
-        }
-
-        if (collision.collider == null)
-        {
-            return;
-        }
-
-        TrafficVehicle otherVehicle = collision.collider.GetComponentInParent<TrafficVehicle>();
-        if (otherVehicle != null && otherVehicle != this)
-        {
-            ReleaseToPhysics();
-            otherVehicle.ReleaseToPhysics();
-        }
-    }
-
-    private void EnsureDebugMarker()
-    {
-        if (debugMarker != null && debugMarkerRenderer != null)
-        {
-            return;
-        }
-
-        Transform existing = transform.Find("StateMarker");
-        if (existing != null)
-        {
-            debugMarker = existing;
-            debugMarkerRenderer = existing.GetComponent<MeshRenderer>();
-        }
-        else
-        {
-            GameObject marker = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-            marker.name = "StateMarker";
-            marker.transform.SetParent(transform, false);
-            marker.transform.localScale = Vector3.one * 0.35f;
-            debugMarker = marker.transform;
-            debugMarkerRenderer = marker.GetComponent<MeshRenderer>();
-
-            Collider collider = marker.GetComponent<Collider>();
-            if (collider != null)
-            {
-                Destroy(collider);
-            }
-        }
-
-        if (debugMarkerBlock == null)
-        {
-            debugMarkerBlock = new MaterialPropertyBlock();
-        }
-
-        if (debugMarkerRenderer == null)
-        {
-            return;
-        }
-
-        if (debugMarkerSharedMaterial == null)
+        if (debugMarkerMaterial == null)
         {
             Shader shader = Shader.Find("Universal Render Pipeline/Unlit");
             if (shader != null)
             {
-                debugMarkerSharedMaterial = new Material(shader)
-                {
-                    name = "TrafficDebugMarkerMaterial"
-                };
+                debugMarkerMaterial = new Material(shader) { name = "TrafficDebugMarkerMaterial" };
             }
         }
 
-        if (debugMarkerSharedMaterial != null)
+        debugMarker = marker.GetComponent<MeshRenderer>();
+        if (debugMarkerMaterial != null)
         {
-            debugMarkerRenderer.sharedMaterial = debugMarkerSharedMaterial;
+            debugMarker.sharedMaterial = debugMarkerMaterial;
         }
 
-        debugMarkerRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-        debugMarkerRenderer.receiveShadows = false;
+        debugMarker.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        debugMarker.receiveShadows = false;
+        debugMarkerBlock = new MaterialPropertyBlock();
     }
 
-    private void UpdateDebugMarkerVisual()
+    private void UpdateDebugMarker()
     {
-        if (debugMarker == null || debugMarkerRenderer == null)
+        if (debugMarker == null)
         {
             return;
         }
 
-        float halfHeight = Mathf.Max(0.1f, transform.localScale.y * 0.5f);
-        debugMarker.localPosition = new Vector3(0f, halfHeight + 0.9f, 0f);
-        debugMarker.localRotation = Quaternion.identity;
-
-        Color color = GetStateColor();
-        debugMarkerBlock.Clear();
+        Color color = isReleased ? ReleasedColor : isBraking ? BrakingColor : FollowingColor;
         debugMarkerBlock.SetColor("_BaseColor", color);
         debugMarkerBlock.SetColor("_Color", color);
-        debugMarkerRenderer.SetPropertyBlock(debugMarkerBlock);
-    }
-
-    private Color GetStateColor()
-    {
-        if (isReleasedToPhysics)
-        {
-            return IsBraking ? BrakingColor : ReleasedColor;
-        }
-
-        return IsBraking ? BrakingColor : TrackFollowColor;
+        debugMarker.SetPropertyBlock(debugMarkerBlock);
     }
 }
