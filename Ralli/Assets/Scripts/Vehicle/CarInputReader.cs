@@ -7,6 +7,8 @@ public class CarInputReader : MonoBehaviour
     public float Brake { get; private set; }
     public bool Handbrake { get; private set; }
     public bool Overdrive { get; private set; }
+    // -1 = look left, 1 = look right.
+    public float CameraLook { get; private set; }
     // Which bound control currently drives Steer (e.g. "/XInputControllerOSX/leftStick/x"). Debug aid.
     public string SteerSourcePath => actions?.Driving.Steer.activeControl?.path ?? "-";
 
@@ -31,5 +33,6 @@ public class CarInputReader : MonoBehaviour
         Brake = actions.Driving.Brake.ReadValue<float>();
         Handbrake = actions.Driving.Handbrake.IsPressed();
         Overdrive = actions.Driving.Boost.IsPressed(); // Input action is still named "Boost".
+        CameraLook = actions.Driving.Camera.ReadValue<float>();
     }
 }
