@@ -29,6 +29,8 @@ public class DriverArms : MonoBehaviour
     [Header("Model")]
     [Tooltip("The arms model, e.g. ThirdParty/WRAD_ARMS/arms.fbx.")]
     [SerializeField] private GameObject armsPrefab;
+    [Tooltip("Uniform scale applied to the spawned arms. WRAD ARMS imports far too large; ~0.09 fits.")]
+    [SerializeField] private float armsScale = 0.09f;
 
     [Header("Body (car-local, meters)")]
     [SerializeField] private Vector3 leftShoulder = new Vector3(-0.51f, -0.19f, -0.23f);
@@ -79,6 +81,7 @@ public class DriverArms : MonoBehaviour
         arms.name = "DriverArms";
         arms.transform.localPosition = Vector3.zero;
         arms.transform.localRotation = Quaternion.identity;
+        arms.transform.localScale = Vector3.one * armsScale;
 
         // Bones get moved far from the model's bind pose, so never cull the mesh by stale bounds.
         foreach (SkinnedMeshRenderer skinned in arms.GetComponentsInChildren<SkinnedMeshRenderer>())
