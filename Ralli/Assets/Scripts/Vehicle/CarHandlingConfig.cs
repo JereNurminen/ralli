@@ -58,6 +58,8 @@ public class CarHandlingConfig : ScriptableObject
     [Range(0f, 1f)] public float idleRpm01 = 0.12f;
     [Tooltip("Extra RPM while on throttle.")]
     [Range(0f, 0.3f)] public float throttleRpmBump = 0.08f;
+    [Tooltip("Extra RPM with Overdrive fully in (the engine sounds strained).")]
+    [Range(0f, 0.3f)] public float overdriveRpmBump = 0.1f;
     [Tooltip("How fast RPM climbs on the ground (0..1 per second).")]
     public float rpmRiseRate = 3f;
     [Tooltip("How fast RPM falls (0..1 per second). Gear shifts and landings drop at this rate.")]
