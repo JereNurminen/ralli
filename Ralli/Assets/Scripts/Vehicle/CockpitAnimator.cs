@@ -93,7 +93,9 @@ public class CockpitAnimator : MonoBehaviour
         BindNeedle(heatGauge, lod);
     }
 
-    private void LateUpdate()
+    // Update (not LateUpdate) so the driver arms rig, which evaluates before LateUpdate,
+    // sees this frame's steering wheel angle.
+    private void Update()
     {
         if (car == null)
         {
