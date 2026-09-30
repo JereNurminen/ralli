@@ -9,12 +9,29 @@ public class TrafficStreamManager : MonoBehaviour
 
     private const float ReleasedRoadSearchDistance = 40f;
     private static readonly System.Comparison<TrafficVehicle> ByRoadPosition = (a, b) => a.CurrentS.CompareTo(b.CurrentS);
+    // Oncoming cars first, then nearest.
+    private static readonly System.Comparison<TrafficVehicle> ByHeadlightPriority = (a, b) =>
+    {
+        int oncoming = a.Direction.CompareTo(b.Direction);
+        return oncoming != 0 ? oncoming : a.CurrentS.CompareTo(b.CurrentS);
+    };
 
     private readonly List<TrafficVehicle> vehicles = new List<TrafficVehicle>();
+    private readonly List<TrafficVehicle> headlightCandidates = new List<TrafficVehicle>();
+    private readonly List<HeadlightSlot> headlightSlots = new List<HeadlightSlot>();
     private readonly List<TrafficVehicle> forwardLane = new List<TrafficVehicle>();
     private readonly List<TrafficVehicle> oncomingLane = new List<TrafficVehicle>();
     private readonly HashSet<int> spawnedChunks = new HashSet<int>();
     private CarController player;
+
+    // A pooled real spot light, lent to one traffic car at a time and faded in/out when it moves.
+    private class HeadlightSlot
+    {
+        public Light light;
+        public TrafficVehicle car;
+        public float weight;
+        public bool releasing;
+    }
     private Rigidbody playerBody;
     private MaterialPropertyBlock propertyBlock;
     private Material trafficMaterial;
@@ -64,6 +81,121 @@ public class TrafficStreamManager : MonoBehaviour
         }
 
         CullOutside(minChunk - 1, spawnMax + 1);
+        AssignRealHeadlights();
+    }
+
+    private void LateUpdate()
+    {
+        UpdateRealHeadlights();
+    }
+
+    // Lends the pooled lights to the nearest cars ahead of the player (oncoming first). Cars keep
+    // their light while they still qualify, so lights only move when they have to.
+    private void AssignRealHeadlights()
+    {
+        EnsureHeadlightPool();
+        float playerS = roadStream.GetEstimatedPlayerS();
+        headlightCandidates.Clear();
+        for (int i = 0; i < vehicles.Count; i++)
+        {
+            TrafficVehicle vehicle = vehicles[i];
+            float ahead = vehicle.CurrentS - playerS;
+            if (!vehicle.IsReleased && ahead > 0f && ahead < config.realHeadlightMaxDistance)
+            {
+                headlightCandidates.Add(vehicle);
+            }
+        }
+
+        headlightCandidates.Sort(ByHeadlightPriority);
+        int wanted = Mathf.Min(headlightSlots.Count, headlightCandidates.Count);
+
+        foreach (HeadlightSlot slot in headlightSlots)
+        {
+            if (slot.car != null && !slot.releasing && headlightCandidates.IndexOf(slot.car) >= wanted)
+            {
+                slot.releasing = true;
+            }
+        }
+
+        for (int i = 0; i < wanted; i++)
+        {
+            TrafficVehicle car = headlightCandidates[i];
+            if (FindSlot(car) != null)
+            {
+                continue;
+            }
+
+            HeadlightSlot free = FindSlot(null);
+            if (free != null)
+            {
+                free.car = car;
+                free.weight = 0f;
+                free.releasing = false;
+            }
+        }
+    }
+
+    private HeadlightSlot FindSlot(TrafficVehicle car)
+    {
+        for (int i = 0; i < headlightSlots.Count; i++)
+        {
+            if (headlightSlots[i].car == car)
+            {
+                return headlightSlots[i];
+            }
+        }
+
+        return null;
+    }
+
+    // Fades lights in/out and keeps each one on the front of its car (after interpolation).
+    private void UpdateRealHeadlights()
+    {
+        if (config == null)
+        {
+            return;
+        }
+
+        float fadeStep = Time.deltaTime / Mathf.Max(0.01f, config.realHeadlightFadeTime);
+        foreach (HeadlightSlot slot in headlightSlots)
+        {
+            bool alive = slot.car != null && !slot.car.IsReleased;
+            slot.weight = Mathf.MoveTowards(slot.weight, alive && !slot.releasing ? 1f : 0f, fadeStep);
+            if (slot.weight <= 0f && (slot.releasing || !alive))
+            {
+                slot.car = null;
+                slot.releasing = false;
+            }
+
+            slot.light.enabled = slot.car != null && slot.weight > 0f;
+            if (!slot.light.enabled)
+            {
+                continue;
+            }
+
+            Transform car = slot.car.transform;
+            slot.light.transform.SetPositionAndRotation(car.TransformPoint(0f, -0.1f, 0.52f), car.rotation * Quaternion.Euler(4f, 0f, 0f));
+            slot.light.intensity = config.realHeadlightIntensity * slot.weight;
+        }
+    }
+
+    private void EnsureHeadlightPool()
+    {
+        while (headlightSlots.Count < config.realHeadlightCount)
+        {
+            var lightObject = new GameObject($"TrafficHeadlight_{headlightSlots.Count}");
+            lightObject.transform.SetParent(transform, false);
+            Light spot = lightObject.AddComponent<Light>();
+            spot.type = LightType.Spot;
+            spot.color = config.vehicleLights != null ? config.vehicleLights.headlightColor : Color.white;
+            spot.range = config.realHeadlightRange;
+            spot.spotAngle = config.realHeadlightAngle;
+            spot.innerSpotAngle = config.realHeadlightAngle * 0.5f;
+            spot.shadows = LightShadows.None;
+            spot.enabled = false;
+            lightObject.AddComponent<LightCone>().Configure(config.realHeadlightBeamVisibility, 0.5f);
+            headlightSlots.Add(new HeadlightSlot { light = spot });
+        }
     }
 
     private void FixedUpdate()
