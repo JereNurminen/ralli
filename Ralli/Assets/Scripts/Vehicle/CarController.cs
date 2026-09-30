@@ -102,7 +102,74 @@ public class CarController : MonoBehaviour
         float frontShare = rearAxleOffset / (frontAxleOffset + rearAxleOffset);
         float exitGrip = 1f + handling.exitBoostGrip * ExitBoost01;
         frontGripUsage = ApplyAxleGrip(frontAxleOffset, steerAngle, handling.frontGripG * frontGrip * exitGrip, frontShare);
-        rearGripUsage = ApplyAxleGrip(-rearAxleOffset, 0f, handling.rearGripG * rearGrip * exitGrip, 1f - frontShare);
+        float spinCatch = GetSpinCatch();
+        float rearGripNow = Mathf.Lerp(rearGrip, 1f, spinCatch);
+        rearGripUsage = ApplyAxleGrip(-rearAxleOffset, 0f, handling.rearGripG * rearGripNow * exitGrip, 1f - frontShare);
+        DampSpin(spinCatch, deltaTime);
+        ApplyDriftMomentum(throttle);
+    }
+
+    // Steering the same way the car is sliding (drift angle and steer share a sign) = counter-steer.
+    private bool IsCounterSteering()
+    {
+        float drift = GetDriftAngle();
+        return Mathf.Abs(drift) > 3f && Mathf.Abs(input.Steer) > handling.steeringThreshold && Mathf.Sign(drift) == Mathf.Sign(input.Steer);
+    }
+
+    // 0 below the drift angle limit, rising to 1 over the catch range. Off while the handbrake is
+    // held, so handbrake turns can still rotate the car all the way round.
+    private float GetSpinCatch()
+    {
+        if (input.Handbrake)
+        {
+            return 0f;
+        }
+
+        return Mathf.InverseLerp(handling.driftAngleLimit, handling.driftAngleLimit + Mathf.Max(1f, handling.spinCatchRange), Mathf.Abs(GetDriftAngle()));
+    }
+
+    // Past the limit, damp only the rotation that would deepen the slide; rotation back out is free.
+    private void DampSpin(float spinCatch, float deltaTime)
+    {
+        if (spinCatch <= 0f)
+        {
+            return;
+        }
+
+        float drift = GetDriftAngle();
+        float yawRate = Vector3.Dot(rb.angularVelocity, transform.up);
+        // Turning right (positive yaw) reduces the drift angle, so deepening means opposite signs.
+        if (Mathf.Sign(yawRate) == Mathf.Sign(drift))
+        {
+            return;
+        }
+
+        float keep = Mathf.Exp(-handling.spinYawDamping * spinCatch * deltaTime);
+        rb.angularVelocity -= transform.up * (yawRate * (1f - keep));
+    }
+
+    // While sliding on throttle, push along the direction of travel to offset the speed lost to
+    // sideways grip, so drifts carry speed instead of bogging down.
+    private void ApplyDriftMomentum(float throttle)
+    {
+        if (handling.driftMomentum <= 0f || throttle < 0.5f || inReverse)
+        {
+            return;
+        }
+
+        float amount = Mathf.InverseLerp(handling.driftMomentumAngles.x, handling.driftMomentumAngles.y, Mathf.Abs(GetDriftAngle()));
+        if (amount <= 0f)
+        {
+            return;
+        }
+
+        Vector3 travel = Vector3.ProjectOnPlane(rb.linearVelocity, transform.up);
+        if (travel.sqrMagnitude < 1f)
+        {
+            return;
+        }
+
+        rb.AddForce(travel.normalized * (handling.driftMomentum * amount), ForceMode.Acceleration);
     }
 
     private void ProbeGround()
@@ -211,10 +278,17 @@ public class CarController : MonoBehaviour
     {
         bool steering = Mathf.Abs(input.Steer) > handling.steeringThreshold;
         float frontTarget = steering && input.Throttle > 0.5f && !overdrive ? handling.frontGripUnderThrottle : 1f;
-        // Overdrive grip loss scales with how hard you steer past the threshold (squared, so small
-        // analog corrections barely loosen the rear). Digital full lock still gets the full effect.
+        // Overdrive loosens the rear as you steer into the turn (past the threshold, shaped by the
+        // exponent). Counter-steering a slide gives the rear its grip back instead, so catching a
+        // drift doesn't swing it into a spin the other way.
         float overdriveSteer = Mathf.InverseLerp(handling.steeringThreshold, 1f, Mathf.Abs(input.Steer));
-        float rearTarget = overdrive ? Mathf.Lerp(1f, handling.rearGripInOverdrive, overdriveSteer * overdriveSteer) : 1f;
+        overdriveSteer = Mathf.Pow(overdriveSteer, handling.overdriveSteerExponent);
+        if (IsCounterSteering())
+        {
+            overdriveSteer = 0f;
+        }
+
+        float rearTarget = overdrive ? Mathf.Lerp(1f, handling.rearGripInOverdrive, overdriveSteer) : 1f;
 
         frontGrip = Mathf.MoveTowards(frontGrip, frontTarget, deltaTime / Mathf.Max(0.01f, handling.frontGripResponseTime));
         rearGrip = Mathf.MoveTowards(rearGrip, rearTarget, deltaTime / Mathf.Max(0.01f, handling.rearGripResponseTime));

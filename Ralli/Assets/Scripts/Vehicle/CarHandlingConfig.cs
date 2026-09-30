@@ -97,6 +97,20 @@ public class CarHandlingConfig : ScriptableObject
     [Tooltip("Seconds for rear grip to move fully between 1 and its lowered value. Higher = longer drifts.")]
     public float rearGripResponseTime = 0.3f;
 
+    [Header("Drift Assist")]
+    [Tooltip("How Overdrive's rear-grip loss follows steering past the threshold: 1 = linear (easy small drifts), 2 = squared (needs big steering).")]
+    [Range(0.5f, 3f)] public float overdriveSteerExponent = 1f;
+    [Tooltip("Drift angle (degrees) where the spin catcher starts to hold the slide.")]
+    public float driftAngleLimit = 35f;
+    [Tooltip("Degrees past the limit over which the catcher reaches full strength.")]
+    public float spinCatchRange = 20f;
+    [Tooltip("How hard rotation that would deepen the slide is damped once past the limit (1/s).")]
+    public float spinYawDamping = 6f;
+    [Tooltip("Forward push that keeps speed through a slide (m/s², along the direction of travel). 0 = off.")]
+    public float driftMomentum = 4f;
+    [Tooltip("Drift angle (degrees) where the momentum push starts, and where it is full.")]
+    public Vector2 driftMomentumAngles = new Vector2(8f, 20f);
+
     [Header("Body")]
     [Tooltip("Target distance from car pivot to ground (m).")]
     public float rideHeight = 1.0f;

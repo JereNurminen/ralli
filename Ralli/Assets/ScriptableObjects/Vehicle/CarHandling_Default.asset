@@ -40,7 +40,7 @@ MonoBehaviour:
   frontGripG: 1.15
   rearGripG: 1.3
   frontGripUnderThrottle: 0.8
-  rearGripInOverdrive: 0.574
+  rearGripInOverdrive: 0.45
   handbrakeRearGrip: 0.3
   frontGripResponseTime: 0.4
   rearGripResponseTime: 0.3
