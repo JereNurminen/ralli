@@ -234,6 +234,7 @@ public class RoadStreamGenerator : MonoBehaviour
     // Bumps whenever the road is rebuilt from scratch; terrain uses it to throw away stale tiles.
     public int Generation => generation;
     public int SampleCount => samples.Count;
+    public float SampleSpacing => sampleDistance;
     public bool IsReady => config != null && samples.Count > 0 && heightField != null;
     public RoadGenerationConfig Config => config;
     public TerrainHeightField HeightField => heightField;
@@ -303,16 +304,49 @@ public class RoadStreamGenerator : MonoBehaviour
             return false;
         }
 
-        RoadSample sample = samples[bestIndex];
+        distance = Mathf.Sqrt(bestSq);
+        lipHeight = GetLipHeight(bestIndex, x, z);
+        return true;
+    }
+
+    // Height of the ditch outer lip on the side of the road where (x, z) lies, following the bank.
+    public float GetLipHeight(int sampleIndex, float x, float z)
+    {
+        RoadSample sample = samples[sampleIndex];
         Vector2 rightFlat = new Vector2(sample.right.x, sample.right.z);
         float flatLength = Mathf.Max(0.0001f, rightFlat.magnitude);
         float lateral = ((x - sample.position.x) * rightFlat.x + (z - sample.position.z) * rightFlat.y) / flatLength;
         float bankSlope = sample.right.y / flatLength;
         float corridor = CorridorHalfWidth;
+        return sample.position.y + Mathf.Clamp(lateral, -corridor, corridor) * bankSlope + config.forestFloorYOffset;
+    }
 
-        distance = Mathf.Sqrt(bestSq);
-        lipHeight = sample.position.y + Mathf.Clamp(lateral, -corridor, corridor) * bankSlope + config.forestFloorYOffset;
-        return true;
+    // All sample indices whose position lies inside the given horizontal rectangle.
+    public void CollectSampleIndices(float minX, float minZ, float maxX, float maxZ, List<int> result)
+    {
+        int minCx = Mathf.FloorToInt(minX / SampleBucketSize);
+        int maxCx = Mathf.FloorToInt(maxX / SampleBucketSize);
+        int minCz = Mathf.FloorToInt(minZ / SampleBucketSize);
+        int maxCz = Mathf.FloorToInt(maxZ / SampleBucketSize);
+        for (int cx = minCx; cx <= maxCx; cx++)
+        {
+            for (int cz = minCz; cz <= maxCz; cz++)
+            {
+                if (!sampleBuckets.TryGetValue(GetBucketKey(cx, cz), out List<int> bucket))
+                {
+                    continue;
+                }
+
+                for (int i = 0; i < bucket.Count; i++)
+                {
+                    Vector3 p = samples[bucket[i]].position;
+                    if (p.x >= minX && p.x <= maxX && p.z >= minZ && p.z <= maxZ)
+                    {
+                        result.Add(bucket[i]);
+                    }
+                }
+            }
+        }
     }
 
     private void AddSampleToBucket(int sampleIndex)
