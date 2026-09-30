@@ -49,8 +49,12 @@ public class TrafficVehicle : MonoBehaviour
         currentSpeedMps = targetSpeedMps;
         lateralOffset = GetLaneOffset();
 
-        CreateDebugMarker();
-        MoveToRoad();
+        if (config.showStateMarkers)
+        {
+            CreateDebugMarker();
+        }
+
+        MoveToRoad(true);
         UpdateDebugMarker();
     }
 
@@ -72,7 +76,7 @@ public class TrafficVehicle : MonoBehaviour
         currentSpeedMps = Mathf.MoveTowards(currentSpeedMps, desiredSpeed, rate * deltaTime);
         currentS += currentSpeedMps * direction * deltaTime;
 
-        MoveToRoad();
+        MoveToRoad(false);
         UpdateDebugMarker();
     }
 
@@ -98,7 +102,9 @@ public class TrafficVehicle : MonoBehaviour
     }
 
     // One road lookup per step: places the car and keeps the turn rate for the next corner check.
-    private void MoveToRoad()
+    // Moves through the physics engine (not by setting the transform) so the kinematic body has a
+    // real velocity and collisions with the player respond to it properly.
+    private void MoveToRoad(bool teleport)
     {
         if (!road.TryGetRoadFrameAtS(currentS, out Vector3 position, out Vector3 forward, out Vector3 right, out Vector3 up, out turnRateDegPerMeter))
         {
@@ -107,7 +113,17 @@ public class TrafficVehicle : MonoBehaviour
 
         float halfHeight = Mathf.Max(0.1f, transform.localScale.y * 0.5f);
         Vector3 lanePosition = position + right * lateralOffset + up * halfHeight;
-        transform.SetPositionAndRotation(lanePosition, Quaternion.LookRotation(forward * direction, up));
+        Quaternion rotation = Quaternion.LookRotation(forward * direction, up);
+        if (teleport)
+        {
+            transform.SetPositionAndRotation(lanePosition, rotation);
+            rb.position = lanePosition;
+            rb.rotation = rotation;
+            return;
+        }
+
+        rb.MovePosition(lanePosition);
+        rb.MoveRotation(rotation);
     }
 
     private bool TryReleaseOnContact()
