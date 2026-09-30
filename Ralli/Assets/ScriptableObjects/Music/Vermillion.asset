@@ -1,0 +1,17 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ed1430ab218c4d3da01cd61da3e7067f, type: 3}
+  m_Name: Vermillion
+  m_EditorClassIdentifier: 
+  intro: {fileID: 8300000, guid: 536f48404f554ec5a35bf747137703cf, type: 3}
+  partA: {fileID: 8300000, guid: 33602c099fa649e7b748d55cdfb5f8b3, type: 3}
+  partB: {fileID: 8300000, guid: 6b2266581fbd4d55b6bd7fabbb72647a, type: 3}

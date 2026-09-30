@@ -1,0 +1,17 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ed1430ab218c4d3da01cd61da3e7067f, type: 3}
+  m_Name: Indigo
+  m_EditorClassIdentifier: 
+  intro: {fileID: 8300000, guid: 636067c293cb4457931079e0ae1b2305, type: 3}
+  partA: {fileID: 8300000, guid: e0ea3f361b7142daa3b0e3125ce0d55f, type: 3}
+  partB: {fileID: 8300000, guid: 394fe91ab1904de1bb60b3c0a81d720f, type: 3}

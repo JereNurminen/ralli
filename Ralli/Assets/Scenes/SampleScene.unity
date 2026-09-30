@@ -2058,6 +2058,68 @@ MonoBehaviour:
   farClip: 400
   roundness: 0.15
   brightness: 0.9
+--- !u!1 &1993720400
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1993720401}
+  - component: {fileID: 1993720402}
+  m_Layer: 0
+  m_Name: MusicDirector
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1993720401
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1993720400}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1993720402
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1993720400}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ffb4c613b5f54592bf5e9419246f79f6, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  tracks:
+  - {fileID: 11400000, guid: 0c5219e5324746c79c18c09905753640, type: 2}
+  - {fileID: 11400000, guid: 843a1a2554764923ad21768a548dac9b, type: 2}
+  - {fileID: 11400000, guid: 61600b7e741643e481d565104a1728f0, type: 2}
+  - {fileID: 11400000, guid: acbdebb01d63412b9479331b6db86259, type: 2}
+  - {fileID: 11400000, guid: 8bce9a3aaa4a4028bb500cfea9a2e49b, type: 2}
+  - {fileID: 11400000, guid: fddb64195197478a90c39c6f7fad1142, type: 2}
+  - {fileID: 11400000, guid: c479962646684fbc82385791164d70e9, type: 2}
+  - {fileID: 11400000, guid: 5ece29dba4ec41f4aef39b91f09db5ee, type: 2}
+  - {fileID: 11400000, guid: d0c099728a87491f8e6d13715004a43e, type: 2}
+  - {fileID: 11400000, guid: 957041c943af47e6b1ad78c8818f0f61, type: 2}
+  - {fileID: 11400000, guid: 73f5c016bfef4ceca8289201df484a40, type: 2}
+  - {fileID: 11400000, guid: 099ef5b7ddb541289e4f19832cdb99f0, type: 2}
+  - {fileID: 11400000, guid: d9663c52f76542f38ecf8d3821f0b640, type: 2}
+  playOnStart: 1
+  musicGroup: {fileID: 24300004, guid: e6b2c624156b4b168952112aaa1c9d39, type: 2}
+  volumeParameter: MusicVolume
+  bassGainParameter: MusicBassGain
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
@@ -2067,3 +2129,4 @@ SceneRoots:
   - {fileID: 832575519}
   - {fileID: 1993720265}
   - {fileID: 1239733282}
+  - {fileID: 1993720401}

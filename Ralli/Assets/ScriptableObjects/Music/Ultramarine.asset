@@ -1,0 +1,17 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ed1430ab218c4d3da01cd61da3e7067f, type: 3}
+  m_Name: Ultramarine
+  m_EditorClassIdentifier: 
+  intro: {fileID: 8300000, guid: 60778379b3e943798ec4f54bdad34bf8, type: 3}
+  partA: {fileID: 8300000, guid: bbfa8ad2f6af40eebd7411d1dc85d415, type: 3}
+  partB: {fileID: 8300000, guid: 0916f53269f941d4b28716b6f98248ea, type: 3}
