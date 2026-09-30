@@ -128,7 +128,8 @@ public class TrafficVehicle : MonoBehaviour
     }
 
     // Panic when the player is ahead in this car's travel direction, inside its lane, closing in,
-    // and a collision is near. The swerve goes away from the player's side, kept on road + shoulder.
+    // and a collision is near. The swerve heads for the car's own road edge; only if the player is
+    // hugging that edge does it go the other way, and even then never across the centerline.
     private void UpdatePanic(in PlayerOnRoad playerOnRoad, float deltaTime)
     {
         panicTimer = Mathf.Max(0f, panicTimer - deltaTime);
@@ -149,9 +150,15 @@ public class TrafficVehicle : MonoBehaviour
 
         if (panicTimer <= 0f)
         {
-            float away = playerOnRoad.lateral >= laneOffset ? -1f : 1f;
-            float edge = road.GetRoadWidth() * 0.5f + road.Config.shoulderWidth - transform.localScale.x * 0.5f;
-            dodgeOffset = Mathf.Clamp(laneOffset + away * config.dodgeDistance, -edge, edge);
+            float outward = Mathf.Sign(laneOffset);
+            float halfWidth = transform.localScale.x * 0.5f;
+            bool playerOnEdgeSide = (playerOnRoad.lateral - laneOffset) * outward > halfWidth;
+            float swerve = (playerOnEdgeSide ? -1f : 1f) * outward * config.dodgeDistance;
+
+            // Keep to this car's half of the road: between the centerline and the shoulder's edge.
+            float edge = road.GetRoadWidth() * 0.5f + road.Config.shoulderWidth - halfWidth;
+            float target = Mathf.Clamp((laneOffset + swerve) * outward, halfWidth, edge);
+            dodgeOffset = target * outward;
         }
 
         panicTimer = Mathf.Max(0.1f, config.panicHoldTime);
