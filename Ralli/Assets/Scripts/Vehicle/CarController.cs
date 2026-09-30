@@ -172,7 +172,9 @@ public class CarController : MonoBehaviour
         float riseRate = handling.rpmRiseRate;
         if (grounded)
         {
-            target = GetGearRpm01(Mathf.Abs(forwardSpeed) * MpsToKph) + throttle * handling.throttleRpmBump;
+            target = GetGearRpm01(Mathf.Abs(forwardSpeed) * MpsToKph)
+                     + throttle * handling.throttleRpmBump
+                     + overdriveFactor * handling.overdriveRpmBump;
         }
         else
         {

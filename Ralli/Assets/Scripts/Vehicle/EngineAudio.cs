@@ -45,13 +45,23 @@ public class EngineAudio : MonoBehaviour
     [SerializeField] private float fadeInTime = 0.8f;
 
     [Header("Overdrive")]
-    [SerializeField] private float overdrivePitchLift = 0.05f;
-    [SerializeField] private float overdriveVolumeLift = 0.15f;
+    [Tooltip("Sustained pitch lift while Overdrive is in.")]
+    [SerializeField] private float overdrivePitchBoost = 0.1f;
+    [Tooltip("Sustained volume lift while Overdrive is in.")]
+    [SerializeField] private float overdriveVolumeBoost = 0.3f;
+    [Tooltip("Extra volume swell the moment Overdrive kicks in.")]
+    [SerializeField] private float engagePunchVolume = 0.5f;
+    [Tooltip("Extra pitch swell the moment Overdrive kicks in.")]
+    [SerializeField] private float engagePunchPitch = 0.08f;
+    [Tooltip("Seconds for the engage swell to fade out.")]
+    [SerializeField] private float engagePunchTime = 0.35f;
 
     private CarController car;
     private CarInputReader input;
     private float throttleBlend;
     private float fadeIn;
+    private float punch;
+    private bool wasOverdriving;
 
     private void Start()
     {
@@ -88,7 +98,9 @@ public class EngineAudio : MonoBehaviour
 
         float rpm = car.EngineRpm01;
         float overdrive = car.OverdriveFactor;
-        float master = volume * fadeIn * (1f + overdriveVolumeLift * overdrive);
+        UpdateEngagePunch(deltaTime);
+        float master = volume * fadeIn * (1f + overdriveVolumeBoost * overdrive + engagePunchVolume * punch);
+        float pitchLift = 1f + overdrivePitchBoost * overdrive + engagePunchPitch * punch;
         float onGain = Mathf.Sin(throttleBlend * Mathf.PI * 0.5f);
         float offGain = Mathf.Cos(throttleBlend * Mathf.PI * 0.5f) * offThrottleVolume;
 
@@ -102,7 +114,7 @@ public class EngineAudio : MonoBehaviour
 
             float weight = GetLayerWeight(i, rpm) * master;
             float pitch = Mathf.Clamp(rpm / Mathf.Max(0.01f, layer.rpm01), 1f - maxPitchShift, 1f + maxPitchShift);
-            pitch *= 1f + overdrivePitchLift * overdrive;
+            pitch *= pitchLift;
 
             if (layer.offSource != null)
             {
@@ -114,6 +126,19 @@ public class EngineAudio : MonoBehaviour
                 SetLoop(layer.onSource, weight * (onGain + offGain), pitch);
             }
         }
+    }
+
+    // Swell that snaps to full when Overdrive kicks in and fades out quickly (eased).
+    private void UpdateEngagePunch(float deltaTime)
+    {
+        bool overdriving = input.Overdrive && input.Throttle > 0.5f;
+        if (overdriving && !wasOverdriving)
+        {
+            punch = 1f;
+        }
+
+        wasOverdriving = overdriving;
+        punch = Mathf.MoveTowards(punch, 0f, deltaTime / Mathf.Max(0.01f, engagePunchTime));
     }
 
     // Equal-power crossfade between the two layers either side of the current RPM.
