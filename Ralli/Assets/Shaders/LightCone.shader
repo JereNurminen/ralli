@@ -24,6 +24,7 @@ Shader "Ralli/LightCone"
             HLSLPROGRAM
             #pragma vertex Vert
             #pragma fragment Frag
+            #pragma multi_compile_fog
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
 
             CBUFFER_START(UnityPerMaterial)
@@ -45,6 +46,7 @@ Shader "Ralli/LightCone"
                 float3 normalWS : TEXCOORD0;
                 float3 positionWS : TEXCOORD1;
                 float along : TEXCOORD2;
+                float fogFactor : TEXCOORD3;
             };
 
             Varyings Vert(Attributes input)
@@ -54,6 +56,7 @@ Shader "Ralli/LightCone"
                 output.positionCS = TransformWorldToHClip(output.positionWS);
                 output.normalWS = TransformObjectToWorldNormal(input.normalOS);
                 output.along = input.uv.y;
+                output.fogFactor = ComputeFogFactor(output.positionCS.z);
                 return output;
             }
 
@@ -63,7 +66,8 @@ Shader "Ralli/LightCone"
                 float facing = abs(dot(normalize(input.normalWS), viewDir));
                 float lengthFade = pow(saturate(1.0 - input.along), _LengthFalloff);
                 float edgeFade = pow(facing, _EdgeSoftness);
-                return half4(_Color.rgb * (lengthFade * edgeFade), 1.0);
+                half3 beam = _Color.rgb * (lengthFade * edgeFade);
+                return half4(MixFogColor(beam, half3(0, 0, 0), input.fogFactor), 1.0);
             }
             ENDHLSL
         }

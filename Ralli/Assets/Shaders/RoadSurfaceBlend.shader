@@ -16,7 +16,6 @@ Shader "Ralli/RoadSurfaceBlend"
         _MarkingFeather("Marking Feather (m)", Float) = 0.03
         _MarkingWearScale("Marking Wear Scale", Float) = 0.18
         _MarkingWearStrength("Marking Wear Strength", Range(0, 1)) = 0.22
-        _MinLighting("Min Lighting", Range(0, 1)) = 0.35
         _AsphaltNoiseScale("Asphalt Noise Scale", Float) = 0.5
         _AsphaltNoiseIntensity("Asphalt Noise Intensity", Range(0, 0.5)) = 0.12
         _DirtNoiseScale("Dirt Noise Scale", Float) = 0.3
@@ -40,9 +39,15 @@ Shader "Ralli/RoadSurfaceBlend"
             HLSLPROGRAM
             #pragma vertex Vert
             #pragma fragment Frag
+            #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
+            #pragma multi_compile _ _ADDITIONAL_LIGHTS_VERTEX _ADDITIONAL_LIGHTS
+            #pragma multi_compile _ _FORWARD_PLUS
+            #pragma multi_compile_fragment _ _SHADOWS_SOFT
+            #pragma multi_compile_fog
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
+            #include "RalliLighting.hlsl"
 
             struct Attributes
             {
@@ -59,6 +64,7 @@ Shader "Ralli/RoadSurfaceBlend"
                 float4 color : TEXCOORD1;
                 float3 positionWS : TEXCOORD2;
                 float2 uv : TEXCOORD3;
+                float fogFactor : TEXCOORD4;
             };
 
             CBUFFER_START(UnityPerMaterial)
@@ -76,7 +82,6 @@ Shader "Ralli/RoadSurfaceBlend"
             float _MarkingFeather;
             float _MarkingWearScale;
             float _MarkingWearStrength;
-            float _MinLighting;
             float _AsphaltNoiseScale;
             float _AsphaltNoiseIntensity;
             float _DirtNoiseScale;
@@ -122,6 +127,7 @@ Shader "Ralli/RoadSurfaceBlend"
                 output.color = input.color;
                 output.positionWS = TransformObjectToWorld(input.positionOS.xyz);
                 output.uv = input.uv;
+                output.fogFactor = ComputeFogFactor(output.positionHCS.z);
                 return output;
             }
 
@@ -180,11 +186,12 @@ Shader "Ralli/RoadSurfaceBlend"
                 baseColor = lerp(baseColor, _MarkingColor.rgb, markingMask);
 
                 float3 normalWS = normalize(input.normalWS);
-                Light mainLight = GetMainLight();
-                float nl = saturate(dot(normalWS, mainLight.direction));
-                float lighting = max(_MinLighting, nl);
 
-                return half4(baseColor * lighting, 1.0);
+                half3 lighting = RalliDiffuseLighting(input.positionWS, normalWS, input.positionHCS);
+
+                half3 color = MixFog(baseColor * lighting, input.fogFactor);
+
+                return half4(color, 1.0);
             }
             ENDHLSL
         }
