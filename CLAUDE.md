@@ -54,7 +54,10 @@ Assets/
   ScriptableObjects/
   Scenes/
   Settings/        # URP and render pipeline assets
+  ThirdParty/      # Third-party assets — git-ignored, never commit
 ```
+
+- **Third-party assets** go in `Assets/ThirdParty/` (git-ignored). Log every one in `docs/third-party-assets.md` (author, source, licence, credit text) when it is added.
 
 ## Development Workflow
 

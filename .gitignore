@@ -35,3 +35,7 @@ Thumbs.db
 # Crash reports
 Ralli/sysinfo.txt
 crashlytics-build.properties
+
+# Third-party assets: kept locally, never committed. Log each one in docs/third-party-assets.md.
+Ralli/Assets/ThirdParty/
+Ralli/Assets/ThirdParty.meta
