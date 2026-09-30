@@ -24,6 +24,8 @@ public class TrafficStreamManager : MonoBehaviour
     private readonly HashSet<int> spawnedChunks = new HashSet<int>();
     private CarController player;
 
+    public IReadOnlyList<TrafficVehicle> Vehicles => vehicles;
+
     // A pooled real spot light, lent to one traffic car at a time and faded in/out when it moves.
     private class HeadlightSlot
     {

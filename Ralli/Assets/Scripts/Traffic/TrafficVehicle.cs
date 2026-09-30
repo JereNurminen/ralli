@@ -44,8 +44,11 @@ public class TrafficVehicle : MonoBehaviour
     private MaterialPropertyBlock debugMarkerBlock;
 
     public float CurrentS => currentS;
+    public float SpeedMps => currentSpeedMps;
     public float Direction => direction;
     public bool IsReleased => isReleased;
+    // True once the player has actually touched this car (not just made it flinch).
+    public bool TouchedPlayer { get; private set; }
 
     // The next car ahead in the same lane (set by the manager every step), or null.
     public void SetLeader(TrafficVehicle carAhead)
@@ -99,6 +102,7 @@ public class TrafficVehicle : MonoBehaviour
 
         if (IsNearPlayer())
         {
+            TouchedPlayer = true;
             Release();
             return;
         }
@@ -235,6 +239,7 @@ public class TrafficVehicle : MonoBehaviour
         Collider other = collision.collider;
         if (player != null && other.GetComponentInParent<CarController>() == player)
         {
+            TouchedPlayer = true;
             Release();
             return;
         }
