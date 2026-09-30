@@ -1,20 +1,25 @@
 using UnityEngine;
 
-// Police van lights: a red/blue roof light bar that glows hard enough for bloom to flare in
-// daylight, matching red/blue point lights that wash over the surroundings (and the player's
-// cabin up close), and headlights. Strobe pattern per cycle: red double-flash, then blue.
+// Police van lights: red and blue rotating beacons on the roof, each sweeping a spot-light beam
+// (with a faintly visible cone) around the van, half a turn apart. The roof light bar flares
+// whenever a beam sweeps past the viewer; dim red/blue fill lights tint the surroundings between
+// sweeps. Also headlights. The van root is unscaled, so everything here is in meters.
 public class PoliceLights : MonoBehaviour
 {
     private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
 
     private PoliceConfig config;
-    private Light redLight;
-    private Light blueLight;
+    private Transform redBeacon;
+    private Transform blueBeacon;
+    private Light redFill;
+    private Light blueFill;
     private MeshRenderer redBar;
     private MeshRenderer blueBar;
     private MaterialPropertyBlock block;
+    private float spin;
 
-    // The strobe's current color and brightness (0..1), for effects that flash along with it.
+    // How strongly a beam currently faces the main camera (0..1), and that beam's color, for
+    // effects that pulse along with the sweeps.
     public Color FlashColor { get; private set; }
     public float FlashAmount { get; private set; }
 
@@ -23,15 +28,16 @@ public class PoliceLights : MonoBehaviour
         config = policeConfig;
         block = new MaterialPropertyBlock();
 
-        // Parent is scaled to the van size, so work in normalized (-0.5..0.5) local units.
-        Vector3 size = config.vanSize;
-        float roofY = 0.5f + 0.08f / size.y;
-        redBar = CreateBar("LightBar_Red", new Vector3(-0.22f, roofY, 0.3f), size);
-        blueBar = CreateBar("LightBar_Blue", new Vector3(0.22f, roofY, 0.3f), size);
-        redLight = CreatePointLight("Strobe_Red", new Vector3(-0.22f, roofY + 0.2f / size.y, 0.3f), config.strobeRed);
-        blueLight = CreatePointLight("Strobe_Blue", new Vector3(0.22f, roofY + 0.2f / size.y, 0.3f), config.strobeBlue);
-        CreateHeadlight(-1f);
-        CreateHeadlight(1f);
+        float roof = config.vanSize.y * 0.5f;
+        float front = config.vanSize.z * 0.5f;
+        redBar = CreateBar("LightBar_Red", new Vector3(-0.42f, roof + 0.08f, 0.6f));
+        blueBar = CreateBar("LightBar_Blue", new Vector3(0.42f, roof + 0.08f, 0.6f));
+        redBeacon = CreateBeacon("Beacon_Red", new Vector3(-0.42f, roof + 0.12f, 0.6f), config.strobeRed);
+        blueBeacon = CreateBeacon("Beacon_Blue", new Vector3(0.42f, roof + 0.12f, 0.6f), config.strobeBlue);
+        redFill = CreateFill("Fill_Red", new Vector3(-0.42f, roof + 0.3f, 0.6f), config.strobeRed);
+        blueFill = CreateFill("Fill_Blue", new Vector3(0.42f, roof + 0.3f, 0.6f), config.strobeBlue);
+        CreateHeadlight(-1f, front);
+        CreateHeadlight(1f, front);
     }
 
     private void Update()
@@ -41,31 +47,48 @@ public class PoliceLights : MonoBehaviour
             return;
         }
 
-        // Cycle: red flash, gap, red flash, gap, blue flash, gap, blue flash, gap.
-        float phase = Mathf.Repeat(Time.time * config.strobeFrequency, 1f);
-        int slot = Mathf.FloorToInt(phase * 8f);
-        bool flashOn = slot % 2 == 0;
-        bool red = slot < 4;
-        float redAmount = flashOn && red ? 1f : 0f;
-        float blueAmount = flashOn && !red ? 1f : 0f;
+        spin = Mathf.Repeat(spin + config.beaconTurnsPerSecond * 360f * Time.deltaTime, 360f);
+        redBeacon.localRotation = Quaternion.Euler(4f, spin, 0f);
+        blueBeacon.localRotation = Quaternion.Euler(4f, spin + 180f, 0f);
 
-        redLight.intensity = redAmount * config.strobeLightIntensity;
-        blueLight.intensity = blueAmount * config.strobeLightIntensity;
-        SetBarGlow(redBar, config.strobeRed, redAmount);
-        SetBarGlow(blueBar, config.strobeBlue, blueAmount);
+        // Each bar flares as its beam sweeps past the camera, like a real rotating beacon.
+        float redFacing = GetFacing(redBeacon);
+        float blueFacing = GetFacing(blueBeacon);
+        SetBarGlow(redBar, config.strobeRed, redFacing);
+        SetBarGlow(blueBar, config.strobeBlue, blueFacing);
 
-        FlashColor = red ? config.strobeRed : config.strobeBlue;
-        FlashAmount = flashOn ? 1f : 0f;
+        float fill = config.beaconIntensity * config.beaconFillAmount;
+        redFill.intensity = fill;
+        blueFill.intensity = fill;
+
+        bool redStronger = redFacing >= blueFacing;
+        FlashColor = redStronger ? config.strobeRed : config.strobeBlue;
+        FlashAmount = redStronger ? redFacing : blueFacing;
     }
 
-    private MeshRenderer CreateBar(string name, Vector3 localPosition, Vector3 vanSize)
+    // 1 when the beam points straight at the camera, falling off sharply as it sweeps away.
+    private static float GetFacing(Transform beacon)
+    {
+        Camera viewer = Camera.main;
+        if (viewer == null)
+        {
+            return 0f;
+        }
+
+        Vector3 toViewer = Vector3.ProjectOnPlane(viewer.transform.position - beacon.position, beacon.parent.up);
+        Vector3 beam = Vector3.ProjectOnPlane(beacon.forward, beacon.parent.up);
+        float alignment = Mathf.Max(0f, Vector3.Dot(beam.normalized, toViewer.normalized));
+        return Mathf.Pow(alignment, 8f);
+    }
+
+    private MeshRenderer CreateBar(string name, Vector3 localPosition)
     {
         GameObject bar = GameObject.CreatePrimitive(PrimitiveType.Cube);
         bar.name = name;
         Destroy(bar.GetComponent<Collider>());
         bar.transform.SetParent(transform, false);
         bar.transform.localPosition = localPosition;
-        bar.transform.localScale = new Vector3(0.55f / vanSize.x, 0.14f / vanSize.y, 0.3f / vanSize.z);
+        bar.transform.localScale = new Vector3(0.55f, 0.14f, 0.3f);
 
         Shader unlit = Shader.Find("Universal Render Pipeline/Unlit");
         MeshRenderer renderer = bar.GetComponent<MeshRenderer>();
@@ -78,25 +101,41 @@ public class PoliceLights : MonoBehaviour
         return renderer;
     }
 
-    private Light CreatePointLight(string name, Vector3 localPosition, Color color)
+    private Transform CreateBeacon(string name, Vector3 localPosition, Color color)
     {
-        var lightObject = new GameObject(name);
-        lightObject.transform.SetParent(transform, false);
-        lightObject.transform.localPosition = localPosition;
-        Light light = lightObject.AddComponent<Light>();
-        light.type = LightType.Point;
-        light.color = color;
-        light.range = config.strobeLightRange;
-        light.intensity = 0f;
-        light.shadows = LightShadows.None;
-        return light;
+        var beacon = new GameObject(name);
+        beacon.transform.SetParent(transform, false);
+        beacon.transform.localPosition = localPosition;
+        Light beam = beacon.AddComponent<Light>();
+        beam.type = LightType.Spot;
+        beam.color = color;
+        beam.intensity = config.beaconIntensity;
+        beam.range = config.beaconRange;
+        beam.spotAngle = config.beaconBeamAngle;
+        beam.innerSpotAngle = config.beaconBeamAngle * 0.5f;
+        beam.shadows = LightShadows.None;
+        beacon.AddComponent<LightCone>().Configure(config.beamVisibility, 0.7f);
+        return beacon.transform;
     }
 
-    private void CreateHeadlight(float side)
+    private Light CreateFill(string name, Vector3 localPosition, Color color)
+    {
+        var fillObject = new GameObject(name);
+        fillObject.transform.SetParent(transform, false);
+        fillObject.transform.localPosition = localPosition;
+        Light fill = fillObject.AddComponent<Light>();
+        fill.type = LightType.Point;
+        fill.color = color;
+        fill.range = config.beaconRange * 0.5f;
+        fill.shadows = LightShadows.None;
+        return fill;
+    }
+
+    private void CreateHeadlight(float side, float front)
     {
         var lightObject = new GameObject(side < 0f ? "Headlight_L" : "Headlight_R");
         lightObject.transform.SetParent(transform, false);
-        lightObject.transform.localPosition = new Vector3(0.35f * side, -0.15f, 0.5f);
+        lightObject.transform.localPosition = new Vector3(0.65f * side, -0.3f, front);
         lightObject.transform.localRotation = Quaternion.Euler(3f, 0f, 0f);
         Light spot = lightObject.AddComponent<Light>();
         spot.type = LightType.Spot;
@@ -106,12 +145,13 @@ public class PoliceLights : MonoBehaviour
         spot.spotAngle = 55f;
         spot.innerSpotAngle = 30f;
         spot.shadows = LightShadows.None;
+        lightObject.AddComponent<LightCone>().Configure(config.beamVisibility * 0.5f, 0.5f);
     }
 
-    // Dark when off, HDR-bright when on, so bloom flares it.
+    // Dim at rest, HDR-bright as a beam faces the viewer, so bloom flares it.
     private void SetBarGlow(MeshRenderer bar, Color color, float amount)
     {
-        Color glow = amount > 0f ? color * config.lightBarEmission : color * 0.15f;
+        Color glow = color * Mathf.Lerp(0.3f, config.lightBarEmission, amount);
         block.SetColor(BaseColorId, glow);
         bar.SetPropertyBlock(block);
     }

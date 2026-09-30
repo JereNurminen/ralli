@@ -78,11 +78,18 @@ public class PoliceChaser : MonoBehaviour
         speedMps = config.chaseSpeedKph / 3.6f;
         lateralOffset = GetLaneOffset();
 
+        // Unscaled root carries physics and lights; a scaled child is the visible body. (Rotating
+        // lights under a non-uniformly scaled parent would get skewed.)
+        var root = new GameObject("PoliceVan");
+        root.transform.SetParent(transform, false);
+        vanCollider = root.AddComponent<BoxCollider>();
+        vanCollider.size = config.vanSize;
+
         GameObject body = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        body.name = "PoliceVan";
-        body.transform.SetParent(transform, false);
+        body.name = "Body";
+        Destroy(body.GetComponent<Collider>());
+        body.transform.SetParent(root.transform, false);
         body.transform.localScale = config.vanSize;
-        vanCollider = body.GetComponent<BoxCollider>();
 
         Shader shader = Shader.Find("Universal Render Pipeline/Lit");
         if (shader != null)
@@ -92,13 +99,13 @@ public class PoliceChaser : MonoBehaviour
             body.GetComponent<MeshRenderer>().sharedMaterial = material;
         }
 
-        van = body.AddComponent<Rigidbody>();
+        van = root.AddComponent<Rigidbody>();
         van.isKinematic = true;
         van.useGravity = false;
         van.interpolation = RigidbodyInterpolation.Interpolate;
         van.collisionDetectionMode = CollisionDetectionMode.ContinuousSpeculative;
 
-        Lights = body.AddComponent<PoliceLights>();
+        Lights = root.AddComponent<PoliceLights>();
         Lights.Initialize(config);
 
         MoveAlongRoad(true);

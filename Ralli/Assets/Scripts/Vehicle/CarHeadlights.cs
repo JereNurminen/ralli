@@ -15,6 +15,10 @@ public class CarHeadlights : MonoBehaviour
     [SerializeField] private float innerSpotAngle = 35f;
     [Tooltip("Only one headlight casts shadows, to keep the cost down.")]
     [SerializeField] private bool castShadows = true;
+    [Tooltip("How visible the fake light beams are. 0 = off.")]
+    [Range(0f, 1f)] [SerializeField] private float beamVisibility = 0.08f;
+    [Tooltip("Beam length as a fraction of the range.")]
+    [Range(0.1f, 1f)] [SerializeField] private float beamLength = 0.4f;
 
     private void Start()
     {
@@ -37,5 +41,6 @@ public class CarHeadlights : MonoBehaviour
         spot.spotAngle = spotAngle;
         spot.innerSpotAngle = innerSpotAngle;
         spot.shadows = shadows ? LightShadows.Soft : LightShadows.None;
+        lightObject.AddComponent<LightCone>().Configure(beamVisibility, beamLength);
     }
 }
