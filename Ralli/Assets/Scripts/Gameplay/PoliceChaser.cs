@@ -3,11 +3,15 @@ using UnityEngine;
 
 // The police: after a delay a van appears on the road behind the player and chases at a constant
 // speed along the road. It never dodges; traffic it touches is knocked loose and shoved aside.
-// Near the player it steers onto the player's line; at the player's bumper it matches their speed
-// and fires CaughtPlayer (the future lose condition).
+// Near the player it steers onto the player's line and rams them in a loop: chase, ram (drive into
+// the player, plus an exaggerated random shove), back off for a moment, repeat. Assumes the van is
+// behind the player.
 public class PoliceChaser : MonoBehaviour
 {
+    private enum ChaseState { Chasing, Ramming, BackingOff }
+
     private const float PlayerHalfLength = 1.9f;
+    private const float PlayerHalfWidth = 0.8f;
 
     [SerializeField] private PoliceConfig config;
     [SerializeField] private RoadStreamGenerator road;
@@ -20,9 +24,14 @@ public class PoliceChaser : MonoBehaviour
     private float s;
     private float speedMps;
     private float lateralOffset;
+    private ChaseState state;
+    private float backoffTimer;
     private readonly Collider[] shoveBuffer = new Collider[16];
 
+    // First contact with the player (the future lose-condition hook).
     public event Action CaughtPlayer;
+    // Every ram that lands.
+    public event Action RammedPlayer;
     public bool IsChasing => van != null;
     public bool HasCaughtPlayer { get; private set; }
     // Bumper-to-bumper distance to the player along the road (m); meaningful while chasing.
@@ -96,25 +105,56 @@ public class PoliceChaser : MonoBehaviour
         float playerS = road.GetEstimatedPlayerS();
         GapToPlayer = playerS - s - config.vanSize.z * 0.5f - PlayerHalfLength;
 
-        float targetSpeed = config.chaseSpeedKph / 3.6f;
         float playerLateral = lateralOffset;
-        if (road.TryGetRoadFrameAtS(playerS, out Vector3 playerRoadPoint, out Vector3 forward, out Vector3 right, out _, out _))
+        float playerSpeed = 0f;
+        Vector3 roadForward = van.transform.forward;
+        Vector3 roadRight = van.transform.right;
+        if (road.TryGetRoadFrameAtS(playerS, out Vector3 playerRoadPoint, out roadForward, out roadRight, out _, out _))
         {
-            playerLateral = Vector3.Dot(player.transform.position - playerRoadPoint, right);
-            if (GapToPlayer <= config.catchDistance)
-            {
-                // Caught: sit on the player's bumper instead of driving through them.
-                targetSpeed = Mathf.Min(targetSpeed, Mathf.Max(0f, Vector3.Dot(playerBody.linearVelocity, forward)));
-                if (!HasCaughtPlayer)
-                {
-                    HasCaughtPlayer = true;
-                    Debug.Log("[PoliceChaser] Caught the player.");
-                    CaughtPlayer?.Invoke();
-                }
-            }
+            playerLateral = Vector3.Dot(player.transform.position - playerRoadPoint, roadRight);
+            playerSpeed = Mathf.Max(0f, Vector3.Dot(playerBody.linearVelocity, roadForward));
         }
 
-        speedMps = Mathf.MoveTowards(speedMps, targetSpeed, config.accelerationMps2 * deltaTime);
+        float chaseSpeed = config.chaseSpeedKph / 3.6f;
+        float targetSpeed = chaseSpeed;
+        float acceleration = config.accelerationMps2;
+        switch (state)
+        {
+            case ChaseState.Chasing:
+                if (GapToPlayer <= config.ramTriggerDistance)
+                {
+                    state = ChaseState.Ramming;
+                }
+
+                break;
+            case ChaseState.Ramming:
+                targetSpeed = playerSpeed + config.ramClosingSpeedKph / 3.6f;
+                bool lateralOverlap = Mathf.Abs(playerLateral - lateralOffset) < config.vanSize.x * 0.5f + PlayerHalfWidth;
+                if (GapToPlayer <= config.ramContactGap && lateralOverlap)
+                {
+                    LandRam(roadForward, roadRight);
+                }
+                else if (GapToPlayer < -1f)
+                {
+                    // Missed and drew alongside: drop back behind the player and try again.
+                    state = ChaseState.BackingOff;
+                    backoffTimer = config.backoffTime;
+                }
+
+                break;
+            case ChaseState.BackingOff:
+                targetSpeed = playerSpeed * config.backoffSpeedFactor;
+                acceleration = config.backoffBrakeMps2;
+                backoffTimer -= deltaTime;
+                if (backoffTimer <= 0f)
+                {
+                    state = ChaseState.Chasing;
+                }
+
+                break;
+        }
+
+        speedMps = Mathf.MoveTowards(speedMps, targetSpeed, acceleration * deltaTime);
         s += speedMps * deltaTime;
 
         // Blend from its own lane onto the player's line as it closes in, staying on the road.
@@ -124,6 +164,26 @@ public class PoliceChaser : MonoBehaviour
         lateralOffset = Mathf.MoveTowards(lateralOffset, lateralTarget, config.lateralSpeed * deltaTime);
 
         MoveAlongRoad(false);
+    }
+
+    // The van's own contact already shoves the player; on top of that, an exaggerated random kick
+    // so no two hits play out the same.
+    private void LandRam(Vector3 roadForward, Vector3 roadRight)
+    {
+        float side = UnityEngine.Random.Range(-1f, 1f);
+        Vector3 kick = roadForward * config.ramPushSpeed + roadRight * (side * config.ramSideKick) + Vector3.up * config.ramUpKick;
+        playerBody.AddForce(kick, ForceMode.VelocityChange);
+        float spin = UnityEngine.Random.Range(-1f, 1f) * config.ramYawKick * Mathf.Deg2Rad;
+        playerBody.AddTorque(player.transform.up * spin, ForceMode.VelocityChange);
+
+        state = ChaseState.BackingOff;
+        backoffTimer = config.backoffTime;
+        RammedPlayer?.Invoke();
+        if (!HasCaughtPlayer)
+        {
+            HasCaughtPlayer = true;
+            CaughtPlayer?.Invoke();
+        }
     }
 
     // Right-hand lane center, like traffic driving the player's direction.
