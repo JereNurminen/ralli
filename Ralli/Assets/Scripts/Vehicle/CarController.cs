@@ -267,7 +267,8 @@ public class CarController : MonoBehaviour
         float brake = inReverse ? throttle : input.Brake;
         float slowdown = handling.rollingDeceleration
             + handling.baseAcceleration * speed01 * speed01
-            + brake * handling.brakeDeceleration;
+            + brake * handling.brakeDeceleration
+            + (input.Handbrake ? handling.handbrakeDeceleration : 0f);
         // Never let slowdown alone push the car past zero.
         slowdown = Mathf.Min(slowdown, speed / deltaTime);
 

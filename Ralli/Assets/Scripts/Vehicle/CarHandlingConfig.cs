@@ -31,6 +31,8 @@ public class CarHandlingConfig : ScriptableObject
     public float rollingDeceleration = 0.5f;
     [Tooltip("Deceleration at full brake (m/s²).")]
     public float brakeDeceleration = 10f;
+    [Tooltip("Deceleration while the handbrake is held (m/s²), on top of the rear grip loss.")]
+    public float handbrakeDeceleration = 6f;
     [Tooltip("Acceleration in reverse (m/s²).")]
     public float reverseAcceleration = 3f;
     [Tooltip("Reverse speed cap (km/h).")]
