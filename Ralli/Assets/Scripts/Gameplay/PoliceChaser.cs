@@ -33,6 +33,7 @@ public class PoliceChaser : MonoBehaviour
     // Every ram that lands.
     public event Action RammedPlayer;
     public bool IsChasing => van != null;
+    public PoliceLights Lights { get; private set; }
     public bool HasCaughtPlayer { get; private set; }
     // Bumper-to-bumper distance to the player along the road (m); meaningful while chasing.
     public float GapToPlayer { get; private set; }
@@ -96,6 +97,9 @@ public class PoliceChaser : MonoBehaviour
         van.useGravity = false;
         van.interpolation = RigidbodyInterpolation.Interpolate;
         van.collisionDetectionMode = CollisionDetectionMode.ContinuousSpeculative;
+
+        Lights = body.AddComponent<PoliceLights>();
+        Lights.Initialize(config);
 
         MoveAlongRoad(true);
     }

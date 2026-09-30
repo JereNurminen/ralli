@@ -793,6 +793,7 @@ GameObject:
   m_Component:
   - component: {fileID: 832575519}
   - component: {fileID: 832575518}
+  - component: {fileID: 1993720601}
   m_Layer: 0
   m_Name: Global Volume
   m_TagString: Untagged
@@ -1531,6 +1532,7 @@ GameObject:
   - component: {fileID: 1993720267}
   - component: {fileID: 1993720268}
   - component: {fileID: 1993720269}
+  - component: {fileID: 1993720600}
   m_Layer: 0
   m_Name: Car
   m_TagString: Untagged
@@ -2166,6 +2168,31 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   config: {fileID: 11400000, guid: b623d1cf940c423dab96a682f7db3463, type: 2}
   road: {fileID: 1239733281}
+--- !u!114 &1993720600
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1993720258}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3a97a4ebcc694413828ba3b5e8c22a9a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+--- !u!114 &1993720601
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 832575517}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 441357ac474b4feda4bdd5011f925e0e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  police: {fileID: 1993720502}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
