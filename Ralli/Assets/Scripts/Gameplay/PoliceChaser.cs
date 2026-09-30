@@ -120,6 +120,7 @@ public class PoliceChaser : MonoBehaviour
 
         Lights = root.AddComponent<PoliceLights>();
         Lights.Initialize(config);
+        root.AddComponent<PoliceSiren>().Initialize(config);
 
         MoveAlongRoad(true);
     }
