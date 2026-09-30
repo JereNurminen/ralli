@@ -241,7 +241,8 @@ public class TrafficVehicle : MonoBehaviour
         }
     }
 
-    private void Release()
+    // Hands the car over to regular physics for good (crashes, panics, being shoved by the police).
+    public void Release()
     {
         if (isReleased)
         {
