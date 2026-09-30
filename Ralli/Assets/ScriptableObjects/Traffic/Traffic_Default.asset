@@ -11,9 +11,9 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: f7db0ff4ac94d44878903540a9a8178c, type: 3}
   m_Name: Traffic_Default
-  m_EditorClassIdentifier:
+  m_EditorClassIdentifier: 
   enableTraffic: 1
-  vehiclesPerKilometer: 15
+  vehiclesPerKilometer: 5
   maxDensityMultiplier: 1.8
   densityRampDistance: 6000
   maxVehiclesPerChunk: 4
@@ -29,6 +29,6 @@ MonoBehaviour:
   cornerMinSpeedFactor: 0.55
   laneShoulderInset: 0.45
   sameDirectionLaneChance: 0.35
-  ragdollReleaseDistance: 0.5
+  ragdollReleaseDistance: 2
   vehicleBoxSize: {x: 1.78, y: 1.46, z: 4.05}
   vehicleMassKg: 1000

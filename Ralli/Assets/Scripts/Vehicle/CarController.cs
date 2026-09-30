@@ -11,9 +11,9 @@ public class CarController : MonoBehaviour
 
     [Header("Geometry")]
     [Tooltip("Front axle distance ahead of the pivot (m).")]
-    [SerializeField] private float frontAxleOffset = 1.3f;
+    [SerializeField] private float frontAxleOffset = 1.21f;
     [Tooltip("Rear axle distance behind the pivot (m).")]
-    [SerializeField] private float rearAxleOffset = 1.3f;
+    [SerializeField] private float rearAxleOffset = 1.21f;
 
     [Header("Grounding")]
     [SerializeField] private LayerMask groundMask = ~0;
@@ -67,8 +67,9 @@ public class CarController : MonoBehaviour
         }
 
         float deltaTime = Time.fixedDeltaTime;
-        bool overdrive = input.Overdrive;
-        float throttle = overdrive ? 1f : input.Throttle;
+        // Overdrive only works on top of held throttle; alone it does nothing.
+        bool overdrive = input.Overdrive && input.Throttle > 0.5f;
+        float throttle = input.Throttle;
         float forwardSpeed = Vector3.Dot(rb.linearVelocity, transform.forward);
 
         ProbeGround();
@@ -136,7 +137,7 @@ public class CarController : MonoBehaviour
         float heatRate = overdrive ? handling.heatRiseRate : handling.heatFallRate;
         heat01 = Mathf.MoveTowards(heat01, overdrive ? 1f : 0f, heatRate * deltaTime);
 
-        // Releasing a proper Overdrive hold gives a short push + grip to exit the corner.
+        // Releasing Overdrive (while staying on throttle) after a proper hold gives a short push + grip to exit the corner.
         if (overdrive)
         {
             overdriveHeldTime += deltaTime;
@@ -144,7 +145,7 @@ public class CarController : MonoBehaviour
         }
         else
         {
-            if (overdriveHeldTime >= handling.exitBoostMinHold)
+            if (overdriveHeldTime >= handling.exitBoostMinHold && input.Throttle > 0.5f)
             {
                 exitBoostTimer = handling.exitBoostDuration;
                 rearGrip = 1f;
@@ -202,7 +203,7 @@ public class CarController : MonoBehaviour
         {
             float heatPower = Mathf.Lerp(1f, handling.powerAtMaxHeat, Mathf.InverseLerp(handling.heatTaperStart, 1f, heat01));
             push = handling.baseAcceleration * Mathf.Lerp(1f, handling.overdrivePowerMultiplier, overdriveFactor) * heatPower * throttle;
-            push += handling.exitBoostAcceleration * ExitBoost01 * (1f - input.Brake);
+            push += handling.exitBoostAcceleration * ExitBoost01 * throttle * (1f - input.Brake);
         }
 
         // Cancel most of the uphill gravity pull so climbs don't bleed speed.
