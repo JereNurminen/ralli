@@ -58,6 +58,15 @@ public class CockpitAnimator : MonoBehaviour
     private CarInputReader input;
     private Transform steeringWheel;
     private Quaternion steeringWheelRest;
+    private Transform lodRoot;
+
+    public Transform SteeringWheel => steeringWheel;
+
+    // Finds a named part of the cockpit model (under LOD0). Null if absent or not yet bound.
+    public Transform FindModelPart(string partName)
+    {
+        return lodRoot != null ? FindDeep(lodRoot, partName) : null;
+    }
 
     private void Start()
     {
@@ -66,6 +75,7 @@ public class CockpitAnimator : MonoBehaviour
 
         Transform searchRoot = modelRoot != null ? modelRoot : transform;
         Transform lod = FindDeep(searchRoot, lodName);
+        lodRoot = lod;
         if (lod == null)
         {
             Debug.LogWarning($"[CockpitAnimator] No '{lodName}' found under {searchRoot.name}; cockpit stays static.");
