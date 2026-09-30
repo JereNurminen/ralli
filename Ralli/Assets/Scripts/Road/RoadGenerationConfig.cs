@@ -195,9 +195,15 @@ public class RoadGenerationConfig : ScriptableObject
     public float railPostEmbedDepthMeters = 0.06f;
 
     [Header("Stations")]
-    [Tooltip("Straight, flat stretch of road centered on each gas station (m).")]
-    public float stationStretchLength = 120f;
-    [Tooltip("Station lot beside the road (right side): x = depth away from the road, y = length along it (m).")]
+    [Tooltip("Straight, flat road before a station's center (m), so arriving isn't sudden.")]
+    public float stationApproachLength = 200f;
+    [Tooltip("Straight, flat road before the start station's center (m). Short: the road bends just before it.")]
+    public float startStationApproachLength = 45f;
+    [Tooltip("Straight, flat road after a station's center (m).")]
+    public float stationExitLength = 60f;
+    [Tooltip("The road bends this much (degrees, random side) on the way to the start station, hiding where the police come from. The road starts aimed so it heads north after the bend.")]
+    public float runInTurnDegrees = 90f;
+    [Tooltip("Station lot beside the road (right side): x = depth away from the road, y = length along it at the back (m). Where it meets the road it is twice as long, tapering like a funnel.")]
     public Vector2 stationLotSize = new Vector2(20f, 26f);
     [Tooltip("Along the lot the right shoulder and ditch are flattened to road level; they blend back over this distance (m).")]
     public float stationApronBlend = 8f;

@@ -21,21 +21,21 @@ MonoBehaviour:
   stages:
   - stageLength: 2500
     lightingPreset: {fileID: 11400000, guid: 1b6d0439552f4edc9ee1bb803e160564, type: 2}
-    roadWidth: 8
+    roadWidth: 9.6
     trafficPerKilometer: 8
     policeChaseSpeedKph: 130
   - stageLength: 3000
     lightingPreset: {fileID: 11400000, guid: dc05c6aafc8b487c8f8640e52005ab36, type: 2}
-    roadWidth: 8
+    roadWidth: 9.2
     trafficPerKilometer: 10
     policeChaseSpeedKph: 140
   - stageLength: 3500
     lightingPreset: {fileID: 11400000, guid: aca6a832ff0749719cee291cd4c3a6d4, type: 2}
-    roadWidth: 7.5
+    roadWidth: 8.6
     trafficPerKilometer: 12
     policeChaseSpeedKph: 150
   - stageLength: 4000
     lightingPreset: {fileID: 11400000, guid: d6e7e0a61deb4c4dbfea31da314bf238, type: 2}
-    roadWidth: 7
+    roadWidth: 8
     trafficPerKilometer: 14
     policeChaseSpeedKph: 160

@@ -203,3 +203,16 @@ No unit tests (project preference). Compile check after each step, then playtest
    after the lead.
 7. Same run seed (set by hand) twice: identical stage roads and elevation; trees and traffic differ.
 8. Being caught shows the Caught card; continuing starts over at stage 1.
+
+## Revisions after the first playtest
+
+- Station lots are paved in the road material and shaped like a funnel: twice the lot length where
+  they meet the road, tapering to the lot length at the back. The lot counts as road corridor for
+  terrain, so the tree strip and boundary wall continue behind it.
+- Station stretches are asymmetric: 200 m of straight before the finish station, 45 m before the
+  start station, 60 m after either.
+- The run-in bends about 90° (random side) into the start station, hiding where the police come
+  from. The road starts aimed so the stage still heads north after the bend.
+- Every stage: traffic spawning and the police countdown (start delay, or the previous lead) begin
+  only when the player drives off the start lot.
+- Shoulders scale with the stage's road width.

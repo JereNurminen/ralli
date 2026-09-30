@@ -42,6 +42,9 @@ public class PoliceChaser : MonoBehaviour
     public float GapToPlayer { get; private set; }
 
     public PoliceConfig Config => config;
+    // While set, the start delay doesn't count down (at a stage start, until the player leaves
+    // the start station).
+    public bool HoldStart { get; set; }
 
     // Stage setup: a runtime config copy, set before the chase starts.
     public void UseConfig(PoliceConfig stageConfig)
@@ -93,8 +96,8 @@ public class PoliceChaser : MonoBehaviour
         float deltaTime = Time.fixedDeltaTime;
         if (van == null)
         {
-            // The delay counts from when the player turns the engine on.
-            if (!player.EngineRunning || passingThrough)
+            // The delay counts from when the player turns the engine on (and is let go).
+            if (!player.EngineRunning || HoldStart || passingThrough)
             {
                 return;
             }

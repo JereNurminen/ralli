@@ -563,30 +563,12 @@ public class TerrainStreamer : MonoBehaviour
         return Mathf.Max(0f, (x - end.x) * outwardFlat.x + (z - end.z) * outwardFlat.y);
     }
 
-    // Distance from (x, z) to the nearest station lot, which reaches from the road centerline to
-    // the back of the yard, and that lot's ground height. float.MaxValue when there are no lots.
+    // Distance from (x, z) to the nearest station lot, and that lot's ground height.
     private float GetStationLotOutside(float x, float z, out float lotHeight)
     {
-        lotHeight = 0f;
-        float best = float.MaxValue;
-        float toCenterline = road.Config.roadWidth * 0.5f + Mathf.Max(0f, road.Config.shoulderWidth);
-        IReadOnlyList<RoadStreamGenerator.StationLot> lots = road.GetStationLots();
-        for (int i = 0; i < lots.Count; i++)
-        {
-            RoadStreamGenerator.StationLot lot = lots[i];
-            Vector3 offset = new Vector3(x - lot.origin.x, 0f, z - lot.origin.z);
-            float across = Vector3.Dot(offset, lot.right);
-            float outsideAcross = Mathf.Max(0f, across - lot.depth) + Mathf.Max(0f, -across - toCenterline);
-            float outsideAlong = Mathf.Max(0f, Mathf.Abs(Vector3.Dot(offset, lot.forward)) - lot.length * 0.5f);
-            float outside = Mathf.Sqrt(outsideAcross * outsideAcross + outsideAlong * outsideAlong);
-            if (outside < best)
-            {
-                best = outside;
-                lotHeight = lot.origin.y + road.Config.forestFloorYOffset;
-            }
-        }
-
-        return best;
+        float outside = road.GetStationLotOutside(x, z, out int lotIndex);
+        lotHeight = lotIndex >= 0 ? road.GetStationLots()[lotIndex].origin.y + road.Config.forestFloorYOffset : 0f;
+        return outside;
     }
 
     private void SpawnTrees(Transform parent, Vector3 origin, float tileSize)
