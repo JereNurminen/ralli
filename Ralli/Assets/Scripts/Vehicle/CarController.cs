@@ -147,6 +147,11 @@ public class CarController : MonoBehaviour
             if (overdriveHeldTime >= handling.exitBoostMinHold)
             {
                 exitBoostTimer = handling.exitBoostDuration;
+                rearGrip = 1f;
+                if (grounded && !inReverse)
+                {
+                    rb.AddForce(transform.forward * (handling.exitBoostKickKph / MpsToKph), ForceMode.VelocityChange);
+                }
             }
 
             overdriveHeldTime = 0f;

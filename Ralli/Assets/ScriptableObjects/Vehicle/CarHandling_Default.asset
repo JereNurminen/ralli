@@ -15,7 +15,7 @@ MonoBehaviour:
   maxSteerAngle: 45
   steerResponse: 19.7
   steerFadeSpeedKph: 162
-  highSpeedSteerFactor: 1
+  highSpeedSteerFactor: 0.5
   wheelRadius: 0.35
   suspensionRestLength: 0.5
   springStrength: 24000

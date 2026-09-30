@@ -41,12 +41,14 @@ public class CarHandlingConfig : ScriptableObject
     [Header("Overdrive Exit Boost")]
     [Tooltip("Overdrive must be held at least this long (s) for release to give an exit boost.")]
     public float exitBoostMinHold = 0.4f;
-    [Tooltip("How long the exit boost lasts (s). Fades out linearly.")]
-    public float exitBoostDuration = 0.6f;
+    [Tooltip("Instant forward speed kick on release (km/h).")]
+    public float exitBoostKickKph = 10f;
+    [Tooltip("How long the follow-up push and grip bonus last (s). Fades out linearly.")]
+    public float exitBoostDuration = 0.8f;
     [Tooltip("Extra forward acceleration at the start of the exit boost (m/s²).")]
-    public float exitBoostAcceleration = 4f;
-    [Tooltip("Extra grip on both axles at the start of the exit boost (0.25 = +25%).")]
-    public float exitBoostGrip = 0.25f;
+    public float exitBoostAcceleration = 6f;
+    [Tooltip("Extra grip on both axles at the start of the exit boost (0.4 = +40%).")]
+    public float exitBoostGrip = 0.4f;
 
     [Header("Engine Heat")]
     [Tooltip("Heat gained per second while Overdrive is held (0..1). 0.125 = 8 s from cold to max.")]
