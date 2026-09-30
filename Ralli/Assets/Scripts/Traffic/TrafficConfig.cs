@@ -39,6 +39,24 @@ public class TrafficConfig : ScriptableObject
     [Tooltip("How firmly a car adjusts speed to hold the gap (1/s).")]
     public float followGapGain = 0.6f;
 
+    [Header("Panic (player heading at them in their lane)")]
+    [Tooltip("Panic when a collision with the player is this many seconds away or less.")]
+    public float panicTimeToCollision = 2.5f;
+    [Tooltip("Ignore the player unless closing faster than this (m/s).")]
+    public float panicMinClosingSpeed = 4f;
+    [Tooltip("How far outside the lane (m) the player still counts as in it.")]
+    public float panicLaneMargin = 1.2f;
+    [Tooltip("Emergency braking while panicking (m/s²).")]
+    public float panicBrakingMps2 = 9f;
+    [Tooltip("How far the car swerves away from the player (m). Limited to the road plus shoulder.")]
+    public float dodgeDistance = 2.5f;
+    [Tooltip("Sideways speed of the swerve (m/s).")]
+    public float dodgeLateralSpeed = 4f;
+    [Tooltip("Sideways speed when easing back into the lane afterwards (m/s).")]
+    public float returnLateralSpeed = 1.5f;
+    [Tooltip("Panic lasts at least this long after the danger has passed (s).")]
+    public float panicHoldTime = 1.5f;
+
     [Header("Cornering")]
     [Tooltip("Enable corner-based speed reduction.")]
     public bool slowInCorners = true;
