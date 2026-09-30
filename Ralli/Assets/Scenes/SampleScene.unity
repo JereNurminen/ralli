@@ -383,31 +383,14 @@ MonoBehaviour:
   m_GameObject: {fileID: 330585543}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 91319d89a69de4f718cfbf953ef437e9, type: 3}
+  m_Script: {fileID: 11500000, guid: f5003eb5068f45da9b97b4ceeaf0f23c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
   target: {fileID: 0}
-  offset: {x: 0, y: 4, z: -8}
-  nearDistanceScale: 0.65
-  farDistanceScale: 1.25
-  speedForMaxDistance: 36
-  speedResponse: 6
-  positionLerp: 8
-  rotationLerp: 10
-  collisionMask:
-    serializedVersion: 2
-    m_Bits: 4294967295
-  cameraRadius: 0.3
-  minimumGroundClearance: 1
-  nearLookAheadDistance: 4.5
-  farLookAheadDistance: 11
-  nearFieldOfView: 60
-  farFieldOfView: 76
-  fovLerp: 6
-  boostDistanceScale: 1.15
-  boostFovAdd: 6
-  boostEffectRampUp: 5
-  boostEffectRampDown: 3
+  eyeOffset: {x: -0.37, y: 0.2, z: -0.15}
+  pitchDegrees: 4
+  fieldOfView: 55
+  nearClipPlane: 0.05
 --- !u!1 &344891948
 GameObject:
   m_ObjectHideFlags: 0
