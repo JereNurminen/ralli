@@ -11,6 +11,7 @@ public class CarInputReader : MonoBehaviour
     public float CameraLook { get; private set; }
     // Which bound control currently drives Steer (e.g. "/XInputControllerOSX/leftStick/x"). Debug aid.
     public string SteerSourcePath => actions?.Driving.Steer.activeControl?.path ?? "-";
+    public string ThrottleSourcePath => actions?.Driving.Throttle.activeControl?.path ?? "-";
 
     private InputSystem_Actions actions;
 

@@ -302,6 +302,7 @@ public class CarController : MonoBehaviour
         {
             engineRunning = true;
             ignitionTimer = 0f;
+            Debug.Log($"[Car] Engine started by throttle {input.Throttle:0.00} from {input.ThrottleSourcePath} at t={Time.time:0.00}s");
             EngineStarted?.Invoke();
         }
 

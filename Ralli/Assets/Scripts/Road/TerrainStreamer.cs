@@ -5,8 +5,8 @@ using UnityEngine;
 // road's ditch lip (cut/fill) to the heightfield further out, so it can never fold over itself
 // the way a spline-extruded skirt does. The band ends in a solid wall (distance-to-road contour,
 // traced per tile). Trees grow in a strip along the road and get trunk colliders. Gas station lots
-// get flat ground and no trees; past a dead end of the road the forest floor carries on flush and
-// trees close in. Tree placement is random per road build (not tied to the road seed).
+// count as part of the road corridor: flat ground on them, and the tree strip and wall continue
+// behind them. Past a dead end of the road the forest floor carries on flush and trees close in. Tree placement is random per road build (not tied to the road seed).
 [RequireComponent(typeof(RoadStreamGenerator))]
 public class TerrainStreamer : MonoBehaviour
 {
@@ -495,8 +495,9 @@ public class TerrainStreamer : MonoBehaviour
 
     // Road-aware ground height: tucked under the road corridor, flat at lip height right
     // outside it, then blending to the heightfield (this blend is the cut/fill face). Station lots
-    // override it with their flat pad. treeDistance is how far trees must keep: the road distance,
-    // except past a dead end, where it grows with the distance beyond the end.
+    // override it with their flat pad. roadDistance is the distance to the corridor (a station lot
+    // counts as corridor), used for the band edge. treeDistance is how far trees must keep: the
+    // same, except past a dead end, where it grows with the distance beyond the end.
     private float SampleGround(float x, float z, out float roadDistance, out float treeDistance)
     {
         RoadGenerationConfig config = road.Config;
@@ -531,9 +532,18 @@ public class TerrainStreamer : MonoBehaviour
             }
         }
 
-        if (roadDistance > corridor || sampleIndex < 0)
+        float lotOutside = GetStationLotOutside(x, z, out float lotHeight);
+        if (lotOutside < float.MaxValue)
         {
-            height = BlendStationLots(x, z, height, ref treeDistance);
+            if (roadDistance > corridor)
+            {
+                float t = Mathf.Clamp01(lotOutside / Mathf.Max(0.01f, config.stationLotTerrainBlend));
+                height = Mathf.Lerp(lotHeight, height, t * t * (3f - 2f * t));
+            }
+
+            float lotDistance = corridor + lotOutside;
+            roadDistance = Mathf.Min(roadDistance, lotDistance);
+            treeDistance = Mathf.Min(treeDistance, lotDistance);
         }
 
         return height;
@@ -553,35 +563,30 @@ public class TerrainStreamer : MonoBehaviour
         return Mathf.Max(0f, (x - end.x) * outwardFlat.x + (z - end.z) * outwardFlat.y);
     }
 
-    // Flat at road surface height on a station lot, blending back to the given height around it.
-    // No trees on the lot or its blend margin.
-    private float BlendStationLots(float x, float z, float height, ref float treeDistance)
+    // Distance from (x, z) to the nearest station lot, which reaches from the road centerline to
+    // the back of the yard, and that lot's ground height. float.MaxValue when there are no lots.
+    private float GetStationLotOutside(float x, float z, out float lotHeight)
     {
-        RoadGenerationConfig config = road.Config;
-        float margin = Mathf.Max(0.01f, config.stationLotTerrainBlend);
+        lotHeight = 0f;
+        float best = float.MaxValue;
+        float toCenterline = road.Config.roadWidth * 0.5f + Mathf.Max(0f, road.Config.shoulderWidth);
         IReadOnlyList<RoadStreamGenerator.StationLot> lots = road.GetStationLots();
         for (int i = 0; i < lots.Count; i++)
         {
             RoadStreamGenerator.StationLot lot = lots[i];
             Vector3 offset = new Vector3(x - lot.origin.x, 0f, z - lot.origin.z);
             float across = Vector3.Dot(offset, lot.right);
-            float along = Vector3.Dot(offset, lot.forward);
-            // The road side (across < 0) is the road's own flattened apron.
-            float outsideAcross = Mathf.Max(0f, across - lot.depth);
-            float outsideAlong = Mathf.Max(0f, Mathf.Abs(along) - lot.length * 0.5f);
+            float outsideAcross = Mathf.Max(0f, across - lot.depth) + Mathf.Max(0f, -across - toCenterline);
+            float outsideAlong = Mathf.Max(0f, Mathf.Abs(Vector3.Dot(offset, lot.forward)) - lot.length * 0.5f);
             float outside = Mathf.Sqrt(outsideAcross * outsideAcross + outsideAlong * outsideAlong);
-            if (outside >= margin)
+            if (outside < best)
             {
-                continue;
+                best = outside;
+                lotHeight = lot.origin.y + road.Config.forestFloorYOffset;
             }
-
-            float t = outside / margin;
-            float weight = 1f - t * t * (3f - 2f * t);
-            height = Mathf.Lerp(height, lot.origin.y + config.forestFloorYOffset, weight);
-            treeDistance = -1f;
         }
 
-        return height;
+        return best;
     }
 
     private void SpawnTrees(Transform parent, Vector3 origin, float tileSize)
