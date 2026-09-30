@@ -1,6 +1,7 @@
 using UnityEngine;
 
-// One time of day: sun, ambient light, fog, sky and a little post-processing. The sun position is
+// One time of day: sun, ambient light, sky and a little post-processing. (Fog belongs to a future
+// weather system, not to the time of day.) The sun position is
 // given as a real compass direction (azimuth from north, clockwise) and height above the horizon;
 // the player is assumed to head north on average, so the sun follows its real path through the day.
 [CreateAssetMenu(menuName = "Ralli/Lighting/Lighting Preset", fileName = "LightingPreset")]
@@ -20,14 +21,8 @@ public class LightingPreset : ScriptableObject
     [ColorUsage(false, true)] public Color ambientEquator = new Color(0.4f, 0.4f, 0.4f);
     [ColorUsage(false, true)] public Color ambientGround = new Color(0.15f, 0.14f, 0.12f);
 
-    [Header("Fog")]
-    public bool fog = true;
-    [ColorUsage(false)] public Color fogColor = new Color(0.6f, 0.65f, 0.7f);
-    [Tooltip("Exponential-squared fog density. ~0.003 = hazy distance, ~0.012 = thick mist.")]
-    public float fogDensity = 0.004f;
-
     [Header("Sky")]
-    [Tooltip("Optional skybox material. Empty = plain sky color (usually matched to the fog).")]
+    [Tooltip("Optional skybox material. Empty = plain sky color.")]
     public Material skybox;
     [ColorUsage(false)] public Color skyColor = new Color(0.6f, 0.65f, 0.7f);
 
@@ -36,4 +31,7 @@ public class LightingPreset : ScriptableObject
     public float bloomThreshold = 1f;
     [Tooltip("Overall brightness adjustment (stops).")]
     public float postExposure;
+    [Tooltip("Color saturation (-100..100). Positive makes colors pop.")]
+    [Range(-100f, 100f)] public float saturation = 20f;
+    [Range(-100f, 100f)] public float contrast = 10f;
 }

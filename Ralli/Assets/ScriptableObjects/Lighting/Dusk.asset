@@ -17,14 +17,13 @@ MonoBehaviour:
   sunColor: {r: 1, g: 0.46, b: 0.22, a: 1}
   sunIntensity: 1.0
   shadowStrength: 0.75
-  ambientSky: {r: 0.2, g: 0.2, b: 0.32, a: 1}
-  ambientEquator: {r: 0.32, g: 0.21, b: 0.19, a: 1}
-  ambientGround: {r: 0.06, g: 0.05, b: 0.05, a: 1}
-  fog: 1
-  fogColor: {r: 0.36, g: 0.27, b: 0.29, a: 1}
-  fogDensity: 0.008
+  ambientSky: {r: 0.26, g: 0.26, b: 0.416, a: 1}
+  ambientEquator: {r: 0.416, g: 0.273, b: 0.247, a: 1}
+  ambientGround: {r: 0.078, g: 0.065, b: 0.065, a: 1}
   skybox: {fileID: 0}
   skyColor: {r: 0.42, g: 0.28, b: 0.3, a: 1}
   bloomIntensity: 1.0
   bloomThreshold: 0.9
   postExposure: 0
+  saturation: 25
+  contrast: 10

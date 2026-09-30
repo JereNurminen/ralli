@@ -33,11 +33,16 @@ Light RalliGetMainLight(float3 positionWS)
     return GetMainLight(TransformWorldToShadowCoord(positionWS));
 }
 
+// Wrapped diffuse: light reaches a bit past the terminator, so surfaces turning away from the sun
+// keep their color instead of going muddy. Stylized rather than physical, on purpose.
+#define RALLI_SUN_WRAP 0.4
+
 // Ambient + sun (with shadows) + additional lights.
 half3 RalliDiffuseLighting(float3 positionWS, half3 normalWS, float4 positionCS)
 {
     Light mainLight = RalliGetMainLight(positionWS);
-    half3 sun = mainLight.color * (mainLight.shadowAttenuation * saturate(dot(normalWS, mainLight.direction)));
+    half wrapped = saturate((dot(normalWS, mainLight.direction) + RALLI_SUN_WRAP) / (1.0 + RALLI_SUN_WRAP));
+    half3 sun = mainLight.color * (mainLight.shadowAttenuation * wrapped);
     return SampleSH(normalWS) + sun + RalliAdditionalLightsDiffuse(positionWS, normalWS, positionCS);
 }
 
