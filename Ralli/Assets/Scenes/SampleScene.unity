@@ -863,12 +863,12 @@ PrefabInstance:
       value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 919132149155446097, guid: 230d6ad0a03654468a9632a3501ac212, type: 3}
-      propertyPath: m_IsActive
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 919132149155446097, guid: 230d6ad0a03654468a9632a3501ac212, type: 3}
       propertyPath: m_Name
       value: DriverArms
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: 230d6ad0a03654468a9632a3501ac212, type: 3}
+      propertyPath: m_IsActive
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 7303110969578990368, guid: 230d6ad0a03654468a9632a3501ac212, type: 3}
       propertyPath: m_UpdateWhenOffscreen
@@ -1500,6 +1500,7 @@ GameObject:
   - component: {fileID: 1993720266}
   - component: {fileID: 1993720267}
   - component: {fileID: 1993720268}
+  - component: {fileID: 1993720269}
   m_Layer: 0
   m_Name: Car
   m_TagString: Untagged
@@ -1648,9 +1649,6 @@ MonoBehaviour:
     restRotation: {x: 0, y: 0, z: 0, w: 0}
     value01: 0
     velocity: 0
-  gearSpanKph: 45
-  gearCount: 5
-  idleRpm01: 0.15
   heatGauge:
     partName: Gauge_Fuel_Needle
     sweepDegrees: -90
@@ -1679,6 +1677,53 @@ MonoBehaviour:
   handSwitchTime: 0.2
   fingerCurlDegrees: 2.92
   thumbCurlDegrees: -8
+--- !u!114 &1993720269
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1993720258}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fbbbfbfb60b14eeaaab6c2a28d7ef5db, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  startup: {fileID: 8300000, guid: 56ad14cf6ac79e64ca4804c8c93fece0, type: 3}
+  layers:
+  - rpm01: 0.12
+    onThrottle: {fileID: 8300000, guid: 79a92db4ffb20fd449e669effcfbde63, type: 3}
+    offThrottle: {fileID: 0}
+    onSource: {fileID: 0}
+    offSource: {fileID: 0}
+  - rpm01: 0.3
+    onThrottle: {fileID: 8300000, guid: caf21a066ef472541b74cc6f46cb4d79, type: 3}
+    offThrottle: {fileID: 8300000, guid: 3048985a7798b684d860bddb83bbc5c0, type: 3}
+    onSource: {fileID: 0}
+    offSource: {fileID: 0}
+  - rpm01: 0.55
+    onThrottle: {fileID: 8300000, guid: 92b51350a374b0145ba411bf6037d2af, type: 3}
+    offThrottle: {fileID: 8300000, guid: aab9893499f2db14d982ea3c214622ec, type: 3}
+    onSource: {fileID: 0}
+    offSource: {fileID: 0}
+  - rpm01: 0.8
+    onThrottle: {fileID: 8300000, guid: ee68262e7a73a4c4b8e940ecd2330b7b, type: 3}
+    offThrottle: {fileID: 8300000, guid: 1a28469b66ddc3f4394165b2634f368d, type: 3}
+    onSource: {fileID: 0}
+    offSource: {fileID: 0}
+  - rpm01: 1
+    onThrottle: {fileID: 8300000, guid: 01c67f1834599824a880b36282466c10, type: 3}
+    offThrottle: {fileID: 0}
+    onSource: {fileID: 0}
+    offSource: {fileID: 0}
+  mixerGroup: {fileID: 0}
+  volume: 0.8
+  offThrottleVolume: 0.7
+  maxPitchShift: 0.2
+  throttleBlendTime: 0.15
+  fadeInTime: 0.8
+  overdrivePitchLift: 0.05
+  overdriveVolumeLift: 0.15
 --- !u!1001 &1993720300
 PrefabInstance:
   m_ObjectHideFlags: 0
