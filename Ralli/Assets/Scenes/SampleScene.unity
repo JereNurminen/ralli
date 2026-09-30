@@ -1125,9 +1125,6 @@ GameObject:
   - component: {fileID: 1993720260}
   - component: {fileID: 1993720259}
   - component: {fileID: 1993720266}
-  - component: {fileID: 1993720267}
-  - component: {fileID: 1993720268}
-  - component: {fileID: 1993720269}
   m_Layer: 0
   m_Name: Car
   m_TagString: Untagged
@@ -1360,64 +1357,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4c2b1f9fa1c714f80a58478bb9c7b13b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
---- !u!114 &1993720267
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1993720258}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: d40e60ee26ecf48fb8cdf5d91e3dd0c7, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  matchPhysicsWheelRadius: 1
-  visualWheelDiameter: 0.9
-  visualRadiusMultiplier: 1
-  wheelWidth: 0.28
-  wheelMaterial: {fileID: 0}
-  createVisualsInEditMode: 1
---- !u!114 &1993720268
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1993720258}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: c6e230a1be7854e028aafa2fb7382a49, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  minSlipIntensity: 0.98
-  brakeSlipThreshold: 0.8
-  tireMarkMaterial: {fileID: 2100000, guid: 74d8350b5bea04b878b4d2d4639e1d32, type: 2}
-  markWidth: 0.22
-  groundOffset: 0.01
-  maxAlpha: 0.85
-  minSurfaceWeight: 0.15
-  maxQuadsPerWheel: 512
-  minSampleDistance: 0.12
-  groundMask:
-    serializedVersion: 2
-    m_Bits: 4294967295
---- !u!114 &1993720269
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1993720258}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: c44fa7fa560d84ef6bcb950d2e69b026, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  smokePrefab: {fileID: 9091878091063422181, guid: ace0efcf2aeba4260b1b6e98a2bd700c, type: 3}
-  minSlipForSmoke: 0.9
-  maxEmissionRate: 40
-  emitHeight: 0.1
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
