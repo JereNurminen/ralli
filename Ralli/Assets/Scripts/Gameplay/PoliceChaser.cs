@@ -41,6 +41,8 @@ public class PoliceChaser : MonoBehaviour
     // Bumper-to-bumper distance to the player along the road (m); meaningful while chasing.
     public float GapToPlayer { get; private set; }
 
+    public PoliceConfig Config => config;
+
     // Stage setup: a runtime config copy, set before the chase starts.
     public void UseConfig(PoliceConfig stageConfig)
     {

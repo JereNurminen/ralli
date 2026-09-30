@@ -28,6 +28,8 @@ public class TrafficStreamManager : MonoBehaviour
 
     public IReadOnlyList<TrafficVehicle> Vehicles => vehicles;
 
+    public TrafficConfig Config => config;
+
     // Stage setup: a runtime config copy, set before traffic spawns.
     public void UseConfig(TrafficConfig stageConfig)
     {

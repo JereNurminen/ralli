@@ -109,9 +109,10 @@ Measured at the moment of finishing, as time:
 - Van chasing: `lead = gap to player / chase speed`.
 - Van not spawned yet: `lead = remaining start delay + spawn distance / chase speed`.
 
-The next stage's police start delay = `lead` (clamped to a minimum, default 3 s). The police spawn
-at the road start (`s = 0`), behind the start station, after that delay counts down (the existing
-delay only runs once the engine is on).
+The next stage's police start delay = `lead` (clamped to a minimum, default 3 s). After that delay
+(which only runs once the engine is on) the van appears its usual spawn distance behind the player,
+never before the road start, so at the very start it comes out of the woods behind the start
+station.
 
 ## Part 2: stage flow
 
@@ -177,7 +178,7 @@ drives out of a dead end or through a station.
 | `RoadStreamGenerator` | Station piece type, forced station stretches, right-side flat apron, road end, stage layout input |
 | `TerrainHeightField` / `TerrainStreamer` | Flat zones, no trees in them, band closes around road ends |
 | `CarController` | Assisted fast stop |
-| `PoliceChaser` | Spawn at `s = 0`, start delay from stage, pass-through mode, lead query |
+| `PoliceChaser` | Start delay and speed from stage, pass-through mode, lead query |
 | `TrafficStreamManager` | Spawn range limited to the stage road |
 | `ScoreSystem` | Start from / write back to `RunState`, stop on finish |
 | `LightingDirector` | Apply a preset chosen at scene start |
