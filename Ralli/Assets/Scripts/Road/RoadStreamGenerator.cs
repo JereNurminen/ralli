@@ -16,6 +16,8 @@ public class RoadStreamGenerator : MonoBehaviour
         public float turnRateDegPerMeter;
         public float slopeAngleDeg;
         public bool isDesignedPiece;
+        // 0..1: how far the right shoulder and ditch are flattened into a station lot apron.
+        public float rightApron;
     }
 
     private class ChunkData
@@ -43,6 +45,20 @@ public class RoadStreamGenerator : MonoBehaviour
         public float lateral;
         public float drop;
         public Color color;
+        // Right shoulder/ditch point that flattens to road level along a station lot.
+        public bool flattensForApron;
+    }
+
+    // A gas station lot beside the road (right side). Origin is on the lot's road-side edge at
+    // road surface height, centered along the lot; the lot extends along +right.
+    public struct StationLot
+    {
+        public float s;
+        public Vector3 origin;
+        public Vector3 forward;
+        public Vector3 right;
+        public float depth;
+        public float length;
     }
 
     [Header("References")]
@@ -67,7 +83,12 @@ public class RoadStreamGenerator : MonoBehaviour
     private int activeSeed;
     private Material runtimeRailFallbackMaterial;
 
-    private enum PieceType { Straight, Curve, Designed }
+    private enum PieceType { Straight, Curve, Designed, Station }
+
+    // Stage layout: stations (straight, flat stretches with a lot beside them) and the dead end.
+    private float[] stationCentersS = Array.Empty<float>();
+    private float roadEndS = float.PositiveInfinity;
+    private readonly List<StationLot> stationLots = new List<StationLot>();
 
     private float sampleDistance;
     private int pieceIndex = -1;
@@ -140,6 +161,7 @@ public class RoadStreamGenerator : MonoBehaviour
         heightField = null;
         generation++;
         chunkLayouts.Clear();
+        stationLots.Clear();
         ResetPieceState();
 
         if (config == null)
@@ -173,7 +195,7 @@ public class RoadStreamGenerator : MonoBehaviour
 
         ChunkLayout layout = GetChunkLayout(chunkIndex);
         startS = layout.startS;
-        endS = layout.endS;
+        endS = Mathf.Min(layout.endS, roadEndS);
         return endS > startS;
     }
 
@@ -235,6 +257,79 @@ public class RoadStreamGenerator : MonoBehaviour
     {
         return EstimatePlayerS();
     }
+
+    // Sets up a stage before the road is built: its config (a runtime copy), the gas station
+    // centers along the road and where the road dead-ends (<= 0 = endless).
+    public void SetStage(RoadGenerationConfig stageConfig, float[] stationCenters, float endS)
+    {
+        config = stageConfig;
+        stationCentersS = stationCenters ?? Array.Empty<float>();
+        roadEndS = endS > 0f ? endS : float.PositiveInfinity;
+    }
+
+    public IReadOnlyList<float> StationCentersS => stationCentersS;
+    public bool HasRoadEnd => !float.IsPositiveInfinity(roadEndS);
+    public float RoadEndS => roadEndS;
+
+    // Lots of all stations, generating the road up to them if needed.
+    public IReadOnlyList<StationLot> GetStationLots()
+    {
+        if (stationLots.Count == stationCentersS.Length || config == null)
+        {
+            return stationLots;
+        }
+
+        stationLots.Clear();
+        float edge = config.roadWidth * 0.5f + Mathf.Max(0f, config.shoulderWidth);
+        foreach (float centerS in stationCentersS)
+        {
+            TryGetRoadFrameAtS(centerS, out Vector3 position, out Vector3 forward, out _, out _, out _);
+            Vector3 flatForward = new Vector3(forward.x, 0f, forward.z).normalized;
+            Vector3 flatRight = Vector3.Cross(Vector3.up, flatForward);
+            stationLots.Add(new StationLot
+            {
+                s = centerS,
+                origin = position + flatRight * edge,
+                forward = flatForward,
+                right = flatRight,
+                depth = config.stationLotSize.x,
+                length = config.stationLotSize.y
+            });
+        }
+
+        return stationLots;
+    }
+
+    // Traffic keeps to the stage road between the first and last station stretch.
+    public bool TryGetTrafficRange(out float minS, out float maxS)
+    {
+        minS = 0f;
+        maxS = float.PositiveInfinity;
+        if (config == null || stationCentersS.Length < 2)
+        {
+            return false;
+        }
+
+        float half = config.stationStretchLength * 0.5f;
+        minS = stationCentersS[0] + half;
+        maxS = stationCentersS[stationCentersS.Length - 1] - half;
+        return true;
+    }
+
+    // Sample at a dead end of the road: the first one, or the last once the road has ended.
+    public bool IsRoadEndSample(int index)
+    {
+        return index == 0 || (HasRoadEnd && index == samples.Count - 1 && index >= MaxSampleIndex);
+    }
+
+    public Vector3 GetSampleTangent(int index)
+    {
+        return samples[index].tangent;
+    }
+
+    private int MaxSampleIndex => HasRoadEnd && sampleDistance > 0f
+        ? Mathf.Max(1, Mathf.FloorToInt(roadEndS / sampleDistance))
+        : int.MaxValue;
 
     // Bumps whenever the road is rebuilt from scratch; terrain uses it to throw away stale tiles.
     public int Generation => generation;
@@ -426,6 +521,11 @@ public class RoadStreamGenerator : MonoBehaviour
                 continue;
             }
 
+            if (GetChunkLayout(chunkIndex).sampleStartIndex >= MaxSampleIndex)
+            {
+                break;
+            }
+
             CreateChunk(chunkIndex);
         }
     }
@@ -433,6 +533,21 @@ public class RoadStreamGenerator : MonoBehaviour
     private void CreateChunk(int chunkIndex)
     {
         ChunkLayout layout = GetChunkLayout(chunkIndex);
+        if (layout.sampleEndIndex > MaxSampleIndex)
+        {
+            // The chunk where the road dead-ends stops at the last sample.
+            layout = new ChunkLayout
+            {
+                chunkIndex = layout.chunkIndex,
+                sampleStartIndex = layout.sampleStartIndex,
+                sampleEndIndex = MaxSampleIndex,
+                sampleCount = MaxSampleIndex - layout.sampleStartIndex,
+                startS = layout.startS,
+                endS = MaxSampleIndex * sampleDistance,
+                length = (MaxSampleIndex - layout.sampleStartIndex) * sampleDistance
+            };
+        }
+
         int startSampleIndex = layout.sampleStartIndex;
         int endSampleIndex = layout.sampleEndIndex;
 
@@ -501,7 +616,7 @@ public class RoadStreamGenerator : MonoBehaviour
             for (int j = 0; j < profileCount; j++)
             {
                 ProfilePoint point = profile[j];
-                Vector3 top = sample.position + sample.right * point.lateral - sample.up * point.drop;
+                Vector3 top = sample.position + sample.right * point.lateral - sample.up * GetPointDrop(point, sample);
                 Vector3 bottom = top - sample.up * thickness;
                 // Encode road-space UVs for procedural markings:
                 // x = lateral offset from centerline (meters), y = distance along road (meters).
@@ -614,7 +729,7 @@ public class RoadStreamGenerator : MonoBehaviour
             for (int j = 0; j < profileCount; j++)
             {
                 ProfilePoint point = profile[j];
-                vertices[rowBase + j] = sample.position + sample.right * point.lateral - sample.up * point.drop;
+                vertices[rowBase + j] = sample.position + sample.right * point.lateral - sample.up * GetPointDrop(point, sample);
             }
         }
 
@@ -872,16 +987,17 @@ public class RoadStreamGenerator : MonoBehaviour
 
         var points = new List<ProfilePoint>(12);
 
-        void AddPoint(float lateral, float drop, Color color)
+        void AddPoint(float lateral, float drop, Color color, bool flattensForApron = false)
         {
+            var point = new ProfilePoint { lateral = lateral, drop = drop, color = color, flattensForApron = flattensForApron };
             if (points.Count > 0 && Mathf.Abs(points[points.Count - 1].lateral - lateral) < 0.0001f
                 && Mathf.Abs(points[points.Count - 1].drop - drop) < 0.0001f)
             {
-                points[points.Count - 1] = new ProfilePoint { lateral = lateral, drop = drop, color = color };
+                points[points.Count - 1] = point;
                 return;
             }
 
-            points.Add(new ProfilePoint { lateral = lateral, drop = drop, color = color });
+            points.Add(point);
         }
 
         if (apronDepth > 0.001f)
@@ -902,16 +1018,16 @@ public class RoadStreamGenerator : MonoBehaviour
         AddPoint(-shoulderOuter, shoulderDrop, dirt);
         AddPoint(-halfRoadWidth, 0f, asphalt);
         AddPoint(halfRoadWidth, 0f, asphalt);
-        AddPoint(shoulderOuter, shoulderDrop, dirt);
+        AddPoint(shoulderOuter, shoulderDrop, dirt, true);
 
         if (ditchWidth > 0.001f)
         {
             if (ditchBottomFlatWidth > 0.001f)
             {
-                AddPoint(ditchBottomInner, ditchBottomDrop, dirt);
+                AddPoint(ditchBottomInner, ditchBottomDrop, dirt, true);
             }
-            AddPoint(ditchBottomOuter, ditchBottomDrop, dirt);
-            AddPoint(ditchOuter, lipDrop, forest);
+            AddPoint(ditchBottomOuter, ditchBottomDrop, dirt, true);
+            AddPoint(ditchOuter, lipDrop, forest, true);
         }
 
         if (apronDepth > 0.001f)
@@ -920,6 +1036,11 @@ public class RoadStreamGenerator : MonoBehaviour
         }
 
         return points.ToArray();
+    }
+
+    private static float GetPointDrop(ProfilePoint point, RoadSample sample)
+    {
+        return point.flattensForApron ? point.drop * (1f - sample.rightApron) : point.drop;
     }
 
     private Material ResolveRailMaterial()
@@ -1000,6 +1121,7 @@ public class RoadStreamGenerator : MonoBehaviour
     private void EnsureSamplesUpToIndex(int targetIndex)
     {
         EnsureInitialized();
+        targetIndex = Mathf.Min(targetIndex, MaxSampleIndex);
 
         for (int i = samples.Count; i <= targetIndex; i++)
         {
@@ -1072,7 +1194,8 @@ public class RoadStreamGenerator : MonoBehaviour
                 bankTargetAngle = targetBankAngle,
                 turnRateDegPerMeter = turnRateDegPerMeter,
                 slopeAngleDeg = slopeAngleDeg,
-                isDesignedPiece = currentPieceType == PieceType.Designed
+                isDesignedPiece = currentPieceType == PieceType.Designed,
+                rightApron = GetRightApron(s)
             };
 
             samples.Add(next);
@@ -1102,10 +1225,11 @@ public class RoadStreamGenerator : MonoBehaviour
         RoadSample first = new RoadSample
         {
             s = 0f,
+            // Every stage starts heading north (+Z), whatever the object's rotation.
             position = transform.position,
-            tangent = transform.forward.normalized,
-            up = transform.up.normalized,
-            right = transform.right.normalized,
+            tangent = Vector3.forward,
+            up = Vector3.up,
+            right = Vector3.right,
             bankAngle = 0f,
             bankTargetAngle = 0f,
             turnRateDegPerMeter = 0f,
@@ -1137,11 +1261,16 @@ public class RoadStreamGenerator : MonoBehaviour
         return pieceTurnRateDegPerMeter;
     }
 
-    // Designed pieces with elevation keep their authored shape (followed as slope, so it is
+    // Stations are flat; designed pieces with elevation keep their authored shape (followed as slope, so it is
     // relative to wherever the piece starts). Everything else climbs/descends toward the terrain
     // height ahead, plus short bumps, with any offset left by a designed piece fading out.
     private float GetTargetSlopeDeg(RoadSample prev, float s, Vector3 horizontalForward)
     {
+        if (currentPieceType == PieceType.Station)
+        {
+            return 0f;
+        }
+
         if (currentPieceType == PieceType.Designed && currentDesignedPiece != null && currentDesignedPiece.hasElevation)
         {
             designedElevationOffset = prev.position.y - heightField.GetHeight(prev.position.x, prev.position.z);
@@ -1198,9 +1327,21 @@ public class RoadStreamGenerator : MonoBehaviour
         pieceIndex++;
         pieceStartS = pieceEndS;
 
+        // Station stretches are forced: dead straight and flat.
+        float nextStationStart = GetNextStationStretch(pieceStartS, out float stationEnd);
+        if (pieceStartS >= nextStationStart)
+        {
+            currentPieceType = PieceType.Station;
+            currentDesignedPiece = null;
+            currentDesignedPieceMirrored = false;
+            pieceEndS = stationEnd;
+            pieceTurnRateDegPerMeter = 0f;
+            return;
+        }
+
         bool forceStartStraight = pieceIndex == 0;
 
-        // Check if we should place a designed piece
+        // Check if we should place a designed piece (only where it ends before the next station)
         if (!forceStartStraight && config.designedPiecePool != null &&
             config.designedPiecePool.pieces.Count > 0)
         {
@@ -1214,7 +1355,7 @@ public class RoadStreamGenerator : MonoBehaviour
             {
                 bool mirrored;
                 DesignedRoadPiece piece = SelectDesignedPiece(out mirrored);
-                if (piece != null && piece.arcLength > 0f)
+                if (piece != null && piece.arcLength > 0f && pieceStartS + piece.arcLength <= nextStationStart)
                 {
                     currentPieceType = PieceType.Designed;
                     currentDesignedPiece = piece;
@@ -1271,7 +1412,6 @@ public class RoadStreamGenerator : MonoBehaviour
 
             turnRate = direction * absRate;
             previousCurveTurnRateDegPerMeter = turnRate;
-            cumulativeYawDeg += turnRate * pieceLength;
         }
         else
         {
@@ -1280,9 +1420,44 @@ public class RoadStreamGenerator : MonoBehaviour
             pieceLength = Mathf.Lerp(minStraightLength, maxStraightLength, Hash01(pieceIndex, 5));
         }
 
-        pieceEndS = pieceStartS + Mathf.Max(sampleDistance, pieceLength);
+        // Procedural pieces are cut short where a station stretch begins.
+        pieceEndS = Mathf.Min(pieceStartS + Mathf.Max(sampleDistance, pieceLength), nextStationStart);
+        pieceLength = pieceEndS - pieceStartS;
         pieceTurnRateDegPerMeter = turnRate;
+        cumulativeYawDeg += turnRate * pieceLength;
         proceduralDistanceSinceLastDesigned += pieceLength;
+    }
+
+    // Start of the first station stretch that ends after s (infinity when none), and its end.
+    private float GetNextStationStretch(float s, out float stretchEnd)
+    {
+        float half = Mathf.Max(0f, config.stationStretchLength) * 0.5f;
+        foreach (float center in stationCentersS)
+        {
+            if (center + half > s)
+            {
+                stretchEnd = center + half;
+                return center - half;
+            }
+        }
+
+        stretchEnd = float.PositiveInfinity;
+        return float.PositiveInfinity;
+    }
+
+    // 1 along a station lot, blending back to 0 (normal shoulder and ditch) past its ends.
+    private float GetRightApron(float s)
+    {
+        float apron = 0f;
+        float half = config.stationLotSize.y * 0.5f;
+        float blend = Mathf.Max(0.01f, config.stationApronBlend);
+        foreach (float center in stationCentersS)
+        {
+            float t = Mathf.Clamp01((Mathf.Abs(s - center) - half) / blend);
+            apron = Mathf.Max(apron, 1f - t * t * (3f - 2f * t));
+        }
+
+        return apron;
     }
 
     private DesignedRoadPiece SelectDesignedPiece(out bool mirrored)
