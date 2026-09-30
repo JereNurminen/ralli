@@ -20,11 +20,10 @@ MonoBehaviour:
   ambientSky: {r: 0.035, g: 0.045, b: 0.08, a: 1}
   ambientEquator: {r: 0.025, g: 0.03, b: 0.04, a: 1}
   ambientGround: {r: 0.01, g: 0.01, b: 0.012, a: 1}
-  fog: 1
-  fogColor: {r: 0.025, g: 0.03, b: 0.045, a: 1}
-  fogDensity: 0.012
   skybox: {fileID: 0}
   skyColor: {r: 0.02, g: 0.025, b: 0.04, a: 1}
   bloomIntensity: 1.4
   bloomThreshold: 0.8
   postExposure: 0.3
+  saturation: 10
+  contrast: 15
