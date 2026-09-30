@@ -93,8 +93,8 @@ public class RoadGenerationConfig : ScriptableObject
     public int terrainTileResolution = 24;
     [Tooltip("Terrain is streamed along the road up to this distance from the stream center (m).")]
     public float terrainRadius = 720f;
-    [Tooltip("Terrain reaches this far sideways from the road (m). A wall stands at this edge.")]
-    public float terrainBandHalfWidth = 120f;
+    [Tooltip("Gap (m) between the outermost trees and the wall at the terrain band edge. The band itself ends where tree coverage ends.")]
+    public float terrainWallMargin = 2f;
     [Tooltip("Height of the wall at the terrain band edge (m).")]
     public float terrainWallHeight = 25f;
     [Tooltip("How far the wall extends below ground (m), so slopes never show a gap under it.")]

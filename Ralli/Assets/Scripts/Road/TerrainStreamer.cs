@@ -94,9 +94,11 @@ public class TerrainStreamer : MonoBehaviour
         return origin + road.GetTargetBearingDirection() * config.terrainBearingBias;
     }
 
+    // The band (and its wall) ends just past the outer edge of tree coverage.
     private float GetBandHalfWidth(RoadGenerationConfig config)
     {
-        return Mathf.Max(road.CorridorHalfWidth + 1f, config.terrainBandHalfWidth);
+        float treeOuter = road.CorridorHalfWidth + Mathf.Max(0f, config.treeDitchClearance) + Mathf.Max(0f, config.treeBandWidth);
+        return treeOuter + Mathf.Max(0f, config.terrainWallMargin);
     }
 
     // New road samples (rare: the road looping back later) invalidate tiles they now influence.
@@ -282,7 +284,7 @@ public class TerrainStreamer : MonoBehaviour
             wallObject.AddComponent<MeshCollider>().sharedMesh = tile.wallMesh;
         }
 
-        SpawnTrees(tileObject.transform, origin, tileSize, band);
+        SpawnTrees(tileObject.transform, origin, tileSize);
         return tile;
     }
 
@@ -514,7 +516,7 @@ public class TerrainStreamer : MonoBehaviour
         return Mathf.Lerp(lipHeight, terrainHeight, t);
     }
 
-    private void SpawnTrees(Transform parent, Vector3 origin, float tileSize, float band)
+    private void SpawnTrees(Transform parent, Vector3 origin, float tileSize)
     {
         RoadGenerationConfig config = road.Config;
         if (!config.spawnForestTrees)
@@ -524,7 +526,7 @@ public class TerrainStreamer : MonoBehaviour
 
         float cell = Mathf.Max(1f, config.treeCellSize);
         float inner = road.CorridorHalfWidth + Mathf.Max(0f, config.treeDitchClearance);
-        float outer = Mathf.Min(inner + Mathf.Max(0f, config.treeBandWidth), band - 1f);
+        float outer = inner + Mathf.Max(0f, config.treeBandWidth);
         Quaternion modelOffset = Quaternion.Euler(config.treeModelRotationOffsetEuler);
 
         // A cell belongs to the tile that contains its min corner, so tiles never double-spawn.
