@@ -54,7 +54,7 @@
                 {
                     "name": "Camera",
                     "type": "Value",
-                    "id": "a1b2c3d4-0002-0006-0001-000000000001",
+                    "id": "87613a2d-5d86-49be-89a2-5f7c9f180bbc",
                     "expectedControlType": "Axis",
                     "processors": "",
                     "interactions": "",
@@ -261,45 +261,12 @@
                     "isPartOfComposite": false
                 },
                 {
-                    "name": "Keyboard",
-                    "id": "b0000006-0001-0001-0001-000000000001",
-                    "path": "1DAxis",
-                    "interactions": "",
-                    "processors": "",
-                    "groups": "",
-                    "action": "Camera",
-                    "isComposite": true,
-                    "isPartOfComposite": false
-                },
-                {
-                    "name": "negative",
-                    "id": "b0000006-0001-0002-0001-000000000001",
-                    "path": "<Keyboard>/q",
-                    "interactions": "",
-                    "processors": "",
-                    "groups": "Keyboard&Mouse",
-                    "action": "Camera",
-                    "isComposite": false,
-                    "isPartOfComposite": true
-                },
-                {
-                    "name": "positive",
-                    "id": "b0000006-0001-0003-0001-000000000001",
-                    "path": "<Keyboard>/e",
-                    "interactions": "",
-                    "processors": "",
-                    "groups": "Keyboard&Mouse",
-                    "action": "Camera",
-                    "isComposite": false,
-                    "isPartOfComposite": true
-                },
-                {
                     "name": "",
-                    "id": "b0000006-0002-0001-0001-000000000001",
+                    "id": "f0cb34e5-e592-49d0-bdb2-c4a58041d1e9",
                     "path": "<Gamepad>/rightStick/x",
                     "interactions": "",
-                    "processors": "AxisDeadzone(min=0.2)",
-                    "groups": "Gamepad",
+                    "processors": "",
+                    "groups": ";Gamepad",
                     "action": "Camera",
                     "isComposite": false,
                     "isPartOfComposite": false
