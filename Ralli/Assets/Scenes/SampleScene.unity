@@ -1536,6 +1536,7 @@ GameObject:
   - component: {fileID: 1993720268}
   - component: {fileID: 1993720269}
   - component: {fileID: 1993720600}
+  - component: {fileID: 7351904412}
   m_Layer: 0
   m_Name: Car
   m_TagString: Untagged
@@ -1765,6 +1766,36 @@ MonoBehaviour:
   engagePunchVolume: 0.5
   engagePunchPitch: 0.08
   engagePunchTime: 0.35
+--- !u!114 &7351904412
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1993720258}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6b859083a91d4883aca5fcb8c36b100e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  screechClips:
+  - {fileID: 8300000, guid: 393307d4dbd64e4086fc9f613f7905ab, type: 3}
+  - {fileID: 8300000, guid: 78becc364215437a84bdc7adbaf45f2b, type: 3}
+  crashClips:
+  - {fileID: 8300000, guid: 0b9ca057f8ae460c8a05d7d88c3ad724, type: 3}
+  - {fileID: 8300000, guid: 6a84a077eae04a2b9f7ab53c6786fa44, type: 3}
+  mixerGroup: {fileID: 0}
+  screechVolume: 0.5
+  screechAngles: {x: 10, y: 30}
+  screechSpeedsKph: {x: 20, y: 60}
+  handbrakeScreech: 0.6
+  screechFadeInTime: 0.08
+  screechFadeOutTime: 0.25
+  screechPitch: {x: 0.9, y: 1.05}
+  crashVolume: 1
+  crashSeverity: {x: 1.5, y: 8}
+  quietestCrashVolume: 0.25
+  crashCooldown: 0.15
 --- !u!1001 &1993720300
 PrefabInstance:
   m_ObjectHideFlags: 0
