@@ -1,12 +1,12 @@
 using UnityEngine;
 
 // Driver's-eye camera. The eye sits at a fixed point in the car; on top of that:
-// - Head sway: a spring-damped "head" pushed around by the car's acceleration (corners, braking,
-//   bumps, landings), which also tilts and nods the view.
-// - Road vibration that grows with speed.
-// - A violent head slam plus shake on hard impacts.
+// - Head sway: a spring-damped head position pushed around by the car's acceleration (corners,
+//   braking, bumps, landings). Position only; the view never tilts from normal driving.
+// - Subtle road vibration that grows with speed (position only).
+// - A violent head slam on hard impacts, with its own spring, a nod/roll and shake.
 // - Looking into the slide: the view turns toward where the car is travelling, fading out when
-//   the car spins so it never swings wildly.
+//   the car spins so it never swings wildly. Plus manual left/right look.
 // Everything is tuned for feel, not realism.
 [RequireComponent(typeof(Camera))]
 public class InCarCamera : MonoBehaviour
@@ -27,31 +27,25 @@ public class InCarCamera : MonoBehaviour
     [SerializeField] private float fieldOfView = 55f;
     [SerializeField] private float nearClipPlane = 0.05f;
 
-    [Header("Head Sway")]
+    [Header("Head Sway (position only)")]
     [Tooltip("How far the head moves per g of car acceleration (m): x = sideways, y = up/down, z = forward/back.")]
-    [SerializeField] private Vector3 headSwayPerG = new Vector3(0.035f, 0.025f, 0.04f);
-    [Tooltip("Head travel limit per axis (m).")]
-    [SerializeField] private Vector3 maxHeadOffset = new Vector3(0.08f, 0.06f, 0.14f);
-    [Tooltip("Head roll (degrees) per g of sideways sway. Leans away from the turn.")]
-    [SerializeField] private float headRollPerG = 4f;
-    [Tooltip("Head nod (degrees) per g of forward/back sway. Nods down under braking and impacts.")]
-    [SerializeField] private float headPitchPerG = 3f;
-    [Tooltip("Head spring frequency (Hz). Lower = floppier.")]
-    [SerializeField] private float headSpringFrequency = 2.2f;
-    [Tooltip("Head spring damping. 1 = no bounce, lower = wobblier.")]
-    [Range(0.05f, 1.5f)] [SerializeField] private float headDamping = 0.55f;
-    [Tooltip("Smoothing of the car acceleration fed to the head (s). Filters physics jitter.")]
-    [SerializeField] private float accelerationSmoothing = 0.05f;
+    [SerializeField] private Vector3 swayPerG = new Vector3(0.012f, 0.008f, 0.015f);
+    [Tooltip("Sway travel limit per axis (m).")]
+    [SerializeField] private Vector3 maxSwayOffset = new Vector3(0.03f, 0.02f, 0.035f);
+    [Tooltip("Sway spring frequency (Hz). Lower = floppier.")]
+    [SerializeField] private float swayFrequency = 1.6f;
+    [Tooltip("Sway spring damping. 1 = no bounce, lower = wobblier.")]
+    [Range(0.05f, 1.5f)] [SerializeField] private float swayDamping = 0.9f;
+    [Tooltip("Smoothing of the car acceleration fed to the sway (s). Higher = calmer, filters physics jitter.")]
+    [SerializeField] private float swayAccelerationSmoothing = 0.2f;
     [Tooltip("Acceleration above this (g) is ignored by the sway; hard hits go through the impact slam instead.")]
-    [SerializeField] private float maxSwayG = 2.5f;
+    [SerializeField] private float maxSwayG = 1.5f;
 
-    [Header("Road Vibration")]
-    [Tooltip("Position jitter at full vibration speed (m).")]
-    [SerializeField] private float vibrationAmount = 0.003f;
-    [Tooltip("Rotation jitter at full vibration speed (degrees).")]
-    [SerializeField] private float vibrationRotation = 0.3f;
-    [Tooltip("Jitter speed (Hz-ish).")]
-    [SerializeField] private float vibrationFrequency = 18f;
+    [Header("Road Vibration (position only)")]
+    [Tooltip("Head jitter at full vibration speed (m). 0 = off.")]
+    [SerializeField] private float roadVibrationAmount = 0.0008f;
+    [Tooltip("Jitter speed. Lower = slower wobble.")]
+    [SerializeField] private float roadVibrationFrequency = 6f;
     [Tooltip("Speed (km/h) where vibration reaches full strength.")]
     [SerializeField] private float vibrationFullSpeedKph = 160f;
 
@@ -60,6 +54,16 @@ public class InCarCamera : MonoBehaviour
     [SerializeField] private float slamPerImpactSpeed = 0.35f;
     [Tooltip("Cap on the slam head velocity (m/s).")]
     [SerializeField] private float maxSlamVelocity = 4f;
+    [Tooltip("Slam travel limit per axis (m).")]
+    [SerializeField] private Vector3 maxSlamOffset = new Vector3(0.1f, 0.08f, 0.16f);
+    [Tooltip("Slam spring frequency (Hz): how fast the head comes back.")]
+    [SerializeField] private float slamFrequency = 3f;
+    [Tooltip("Slam spring damping. Lower = more rebound.")]
+    [Range(0.05f, 1.5f)] [SerializeField] private float slamDamping = 0.45f;
+    [Tooltip("Head nod (degrees) per meter of forward/back slam.")]
+    [SerializeField] private float slamNodPerMeter = 70f;
+    [Tooltip("Head roll (degrees) per meter of sideways slam.")]
+    [SerializeField] private float slamRollPerMeter = 50f;
     [Tooltip("Shake added per 1 m/s of impact speed change (shake is 0..1).")]
     [SerializeField] private float shakePerImpactSpeed = 0.08f;
     [Tooltip("How fast shake dies out (per second).")]
@@ -79,8 +83,8 @@ public class InCarCamera : MonoBehaviour
     [SerializeField] private float slideLookMinSpeedKph = 15f;
     [Tooltip("Drift angle (degrees) where following starts to fade out, and where it is fully gone. Keeps spins from swinging the view.")]
     [SerializeField] private Vector2 spinFadeDegrees = new Vector2(35f, 75f);
-    [Tooltip("Extra look into the turn at full steering (degrees).")]
-    [SerializeField] private float steerLook = 3f;
+    [Tooltip("Extra look into the turn at full steering (degrees). 0 = off.")]
+    [SerializeField] private float steerLook = 0f;
     [Tooltip("How quickly the look direction catches up (s).")]
     [SerializeField] private float lookSmoothTime = 0.25f;
 
@@ -98,8 +102,10 @@ public class InCarCamera : MonoBehaviour
     private Rigidbody carBody;
     private Vector3 lastVelocity;
     private Vector3 smoothedAcceleration;
-    private Vector3 headOffset;
-    private Vector3 headVelocity;
+    private Vector3 swayOffset;
+    private Vector3 swayVelocity;
+    private Vector3 slamOffset;
+    private Vector3 slamVelocity;
     private float shake;
     private float lookYaw;
     private float lookYawVelocity;
@@ -166,7 +172,7 @@ public class InCarCamera : MonoBehaviour
 
         float maxAcceleration = maxSwayG * Gravity;
         acceleration = Vector3.ClampMagnitude(acceleration, maxAcceleration);
-        smoothedAcceleration = Vector3.Lerp(smoothedAcceleration, acceleration, 1f - Mathf.Exp(-deltaTime / Mathf.Max(0.001f, accelerationSmoothing)));
+        smoothedAcceleration = Vector3.Lerp(smoothedAcceleration, acceleration, 1f - Mathf.Exp(-deltaTime / Mathf.Max(0.001f, swayAccelerationSmoothing)));
     }
 
     private void LateUpdate()
@@ -177,7 +183,9 @@ public class InCarCamera : MonoBehaviour
         }
 
         float deltaTime = Mathf.Min(Time.deltaTime, 0.05f);
-        UpdateHead(deltaTime);
+        Vector3 swayRest = -Vector3.Scale(swayPerG, smoothedAcceleration / Gravity);
+        StepSpring(ref swayOffset, ref swayVelocity, swayRest, swayFrequency, swayDamping, maxSwayOffset, deltaTime);
+        StepSpring(ref slamOffset, ref slamVelocity, Vector3.zero, slamFrequency, slamDamping, maxSlamOffset, deltaTime);
         UpdateLook(deltaTime);
         shake = Mathf.MoveTowards(shake, 0f, shakeDecay * deltaTime);
 
@@ -186,37 +194,32 @@ public class InCarCamera : MonoBehaviour
         float shakeStrength = shake * shake;
         float time = Time.time;
 
-        Vector3 jitter = Noise3(time * vibrationFrequency, 0f) * (vibrationAmount * vibration)
+        Vector3 jitter = Noise3(time * roadVibrationFrequency, 0f) * (roadVibrationAmount * vibration)
                          + Noise3(time * shakeFrequency, 50f) * (shakeAmount * shakeStrength);
-        Vector3 jitterRotation = Noise3(time * vibrationFrequency, 100f) * (vibrationRotation * vibration)
-                                 + Noise3(time * shakeFrequency, 150f) * (shakeRotation * shakeStrength);
+        Vector3 shakeTilt = Noise3(time * shakeFrequency, 150f) * (shakeRotation * shakeStrength);
 
-        float headRoll = -SafeDivide(headOffset.x, headSwayPerG.x) * headRollPerG;
-        float headPitch = SafeDivide(headOffset.z, headSwayPerG.z) * headPitchPerG;
+        // Only impacts tilt the head: nod from forward/back slam, roll from sideways slam, plus shake.
+        float slamNod = slamOffset.z * slamNodPerMeter;
+        float slamRoll = -slamOffset.x * slamRollPerMeter;
 
-        Vector3 localEye = eyeOffset + headOffset + jitter;
-        Quaternion look = Quaternion.Euler(0f, lookYaw + manualYaw + jitterRotation.y, 0f)
-                          * Quaternion.Euler(pitchDegrees + headPitch + jitterRotation.x, 0f, headRoll + jitterRotation.z);
+        Vector3 localEye = eyeOffset + swayOffset + slamOffset + jitter;
+        Quaternion look = Quaternion.Euler(0f, lookYaw + manualYaw + shakeTilt.y, 0f)
+                          * Quaternion.Euler(pitchDegrees + slamNod + shakeTilt.x, 0f, slamRoll + shakeTilt.z);
 
         transform.SetPositionAndRotation(target.position + target.rotation * localEye, target.rotation * look);
         cachedCamera.fieldOfView = fieldOfView;
         cachedCamera.nearClipPlane = nearClipPlane;
     }
 
-    // Spring-damped head: acceleration shoves it the opposite way, the spring pulls it back.
-    private void UpdateHead(float deltaTime)
+    private static void StepSpring(ref Vector3 offset, ref Vector3 velocity, Vector3 rest, float frequency, float dampingRatio, Vector3 limit, float deltaTime)
     {
-        float omega = 2f * Mathf.PI * Mathf.Max(0.1f, headSpringFrequency);
-        float stiffness = omega * omega;
-        float damping = 2f * headDamping * omega;
-        Vector3 rest = -Vector3.Scale(headSwayPerG, smoothedAcceleration / Gravity);
-
-        headVelocity += (stiffness * (rest - headOffset) - damping * headVelocity) * deltaTime;
-        headOffset += headVelocity * deltaTime;
-        headOffset = new Vector3(
-            Mathf.Clamp(headOffset.x, -maxHeadOffset.x, maxHeadOffset.x),
-            Mathf.Clamp(headOffset.y, -maxHeadOffset.y, maxHeadOffset.y),
-            Mathf.Clamp(headOffset.z, -maxHeadOffset.z, maxHeadOffset.z)
+        float omega = 2f * Mathf.PI * Mathf.Max(0.1f, frequency);
+        velocity += (omega * omega * (rest - offset) - 2f * dampingRatio * omega * velocity) * deltaTime;
+        offset += velocity * deltaTime;
+        offset = new Vector3(
+            Mathf.Clamp(offset.x, -limit.x, limit.x),
+            Mathf.Clamp(offset.y, -limit.y, limit.y),
+            Mathf.Clamp(offset.z, -limit.z, limit.z)
         );
     }
 
@@ -257,7 +260,7 @@ public class InCarCamera : MonoBehaviour
 
         Vector3 localPush = target.InverseTransformDirection(pushDirection);
         Vector3 slam = -localPush * Mathf.Min(speedChange * slamPerImpactSpeed, maxSlamVelocity);
-        headVelocity += slam;
+        slamVelocity += slam;
         shake = Mathf.Clamp01(shake + speedChange * shakePerImpactSpeed);
     }
 
@@ -270,8 +273,4 @@ public class InCarCamera : MonoBehaviour
         );
     }
 
-    private static float SafeDivide(float value, float divisor)
-    {
-        return Mathf.Abs(divisor) > 0.0001f ? value / divisor : 0f;
-    }
 }
