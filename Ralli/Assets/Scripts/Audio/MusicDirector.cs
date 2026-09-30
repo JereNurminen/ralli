@@ -5,10 +5,10 @@ using UnityEngine.Audio;
 // Stage music (see docs/2026-09-plan/06c-audio-clarified.md).
 // Playback: Intro -> A -> B -> B -> ..., DSP-scheduled on two alternating sources so every
 // section boundary is seamless. Gameplay changes the mix, never the arrangement:
-// - Speed -> small volume boost, re-evaluated a few times per second and eased toward.
-// - Good driving (clean fast streak, until a real combo/score system exists) -> bass EQ boost.
+// - Score multiplier -> volume boost (full at x1.5) and bass EQ boost (full at x2), re-evaluated a
+//   few times per second and eased toward.
 // - Impacts (pushed via OnImpact) -> a fast duck that recovers, independent of the rest.
-// Final level = base + speed boost + impact duck (+ stage-finish fade).
+// Final level = base + multiplier volume boost + impact duck (+ stage-finish fade).
 public class MusicDirector : MonoBehaviour
 {
     private const float SilentDb = -80f;
@@ -29,22 +29,18 @@ public class MusicDirector : MonoBehaviour
 
     [Header("Levels")]
     [SerializeField] private float baseVolumeDb = -4f;
-    [Tooltip("How quickly the speed boost and bass boost ease toward their targets (s).")]
+    [Tooltip("How quickly the volume boost and bass boost ease toward their targets (s).")]
     [SerializeField] private float mixSmoothTime = 0.8f;
     [Tooltip("How often gameplay state is checked (s).")]
     [SerializeField] private float evaluateInterval = 0.3f;
 
-    [Header("Speed -> Volume")]
-    [Tooltip("Speed (km/h) where the boost starts, and where it is full.")]
-    [SerializeField] private Vector2 speedBoostRangeKph = new Vector2(100f, 150f);
-    [SerializeField] private float highSpeedBoostDb = 2f;
-
-    [Header("Good Driving -> Bass")]
-    [Tooltip("Bass EQ boost while driving well (dB).")]
-    [SerializeField] private float goodDrivingBassDb = 3f;
-    [Tooltip("Stand-in for a combo: this many seconds above the speed below without a hard impact.")]
-    [SerializeField] private float cleanStreakSeconds = 8f;
-    [SerializeField] private float cleanStreakMinSpeedKph = 70f;
+    [Header("Score multiplier -> Mix")]
+    [Tooltip("Volume boost (dB) reached at the multiplier below; nothing at x1.")]
+    [SerializeField] private float maxVolumeBoostDb = 2f;
+    [SerializeField] private float volumeBoostFullMultiplier = 1.5f;
+    [Tooltip("Bass EQ boost (dB) reached at the multiplier below; nothing at x1.")]
+    [SerializeField] private float maxBassBoostDb = 3f;
+    [SerializeField] private float bassBoostFullMultiplier = 2f;
 
     [Header("Impact Ducking")]
     [Tooltip("Impact speed change (m/s) where a crash counts as significant, and as major.")]
@@ -69,13 +65,13 @@ public class MusicDirector : MonoBehaviour
     private bool playing;
 
     private CarController car;
-    private float targetSpeedBoostDb;
-    private float speedBoostDb;
-    private float speedBoostVelocity;
+    private ScoreSystem score;
+    private float targetVolumeBoostDb;
+    private float volumeBoostDb;
+    private float volumeBoostVelocity;
     private float targetBassDb;
     private float bassDb;
     private float bassVelocity;
-    private float cleanStreakTimer;
 
     private float duckDb;
     private float duckTargetDb;
@@ -103,6 +99,7 @@ public class MusicDirector : MonoBehaviour
     private void Start()
     {
         car = FindFirstObjectByType<CarController>();
+        score = FindFirstObjectByType<ScoreSystem>();
         if (car != null)
         {
             car.Impact += OnCarImpact;
@@ -191,7 +188,6 @@ public class MusicDirector : MonoBehaviour
             duckRecoverRate = -duck / Mathf.Max(0.01f, recoverTime);
         }
 
-        cleanStreakTimer = 0f;
     }
 
     private void OnCarImpact(float speedChange, Vector3 pushDirection)
@@ -226,7 +222,7 @@ public class MusicDirector : MonoBehaviour
             ScheduleNextSection();
         }
 
-        speedBoostDb = Mathf.SmoothDamp(speedBoostDb, targetSpeedBoostDb, ref speedBoostVelocity, mixSmoothTime, Mathf.Infinity, deltaTime);
+        volumeBoostDb = Mathf.SmoothDamp(volumeBoostDb, targetVolumeBoostDb, ref volumeBoostVelocity, mixSmoothTime, Mathf.Infinity, deltaTime);
         bassDb = Mathf.SmoothDamp(bassDb, targetBassDb, ref bassVelocity, mixSmoothTime, Mathf.Infinity, deltaTime);
         UpdateDuck(deltaTime);
         UpdateFinishFade(deltaTime);
@@ -271,25 +267,18 @@ public class MusicDirector : MonoBehaviour
         var wait = new WaitForSeconds(Mathf.Max(0.05f, evaluateInterval));
         while (true)
         {
-            EvaluateMix(Mathf.Max(0.05f, evaluateInterval));
+            EvaluateMix();
             yield return wait;
         }
     }
 
-    private void EvaluateMix(float interval)
+    // The score multiplier drives the mix: x1 is the base mix, the volume boost is full by
+    // volumeBoostFullMultiplier and the bass boost by bassBoostFullMultiplier.
+    private void EvaluateMix()
     {
-        if (car == null)
-        {
-            targetSpeedBoostDb = 0f;
-            targetBassDb = 0f;
-            return;
-        }
-
-        float speedKph = car.SpeedMps * 3.6f;
-        targetSpeedBoostDb = Mathf.InverseLerp(speedBoostRangeKph.x, speedBoostRangeKph.y, speedKph) * highSpeedBoostDb;
-
-        cleanStreakTimer = speedKph >= cleanStreakMinSpeedKph ? cleanStreakTimer + interval : 0f;
-        targetBassDb = cleanStreakTimer >= cleanStreakSeconds ? goodDrivingBassDb : 0f;
+        float multiplier = score != null ? score.Multiplier : 1f;
+        targetVolumeBoostDb = Mathf.InverseLerp(1f, volumeBoostFullMultiplier, multiplier) * maxVolumeBoostDb;
+        targetBassDb = Mathf.InverseLerp(1f, bassBoostFullMultiplier, multiplier) * maxBassBoostDb;
     }
 
     private void UpdateDuck(float deltaTime)
@@ -331,7 +320,7 @@ public class MusicDirector : MonoBehaviour
 
     private void ApplyMix()
     {
-        float volumeDb = Mathf.Max(SilentDb, baseVolumeDb + speedBoostDb + duckDb + fadeDb);
+        float volumeDb = Mathf.Max(SilentDb, baseVolumeDb + volumeBoostDb + duckDb + fadeDb);
         AudioMixer mixer = musicGroup != null ? musicGroup.audioMixer : null;
         if (mixer != null && mixer.SetFloat(volumeParameter, volumeDb))
         {
