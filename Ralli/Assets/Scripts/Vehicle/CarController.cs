@@ -164,7 +164,10 @@ public class CarController : MonoBehaviour
     {
         bool steering = Mathf.Abs(input.Steer) > handling.steeringThreshold;
         float frontTarget = steering && input.Throttle > 0.5f && !overdrive ? handling.frontGripUnderThrottle : 1f;
-        float rearTarget = steering && overdrive ? handling.rearGripInOverdrive : 1f;
+        // Overdrive grip loss scales with how hard you steer past the threshold (squared, so small
+        // analog corrections barely loosen the rear). Digital full lock still gets the full effect.
+        float overdriveSteer = Mathf.InverseLerp(handling.steeringThreshold, 1f, Mathf.Abs(input.Steer));
+        float rearTarget = overdrive ? Mathf.Lerp(1f, handling.rearGripInOverdrive, overdriveSteer * overdriveSteer) : 1f;
 
         frontGrip = Mathf.MoveTowards(frontGrip, frontTarget, deltaTime / Mathf.Max(0.01f, handling.frontGripResponseTime));
         rearGrip = Mathf.MoveTowards(rearGrip, rearTarget, deltaTime / Mathf.Max(0.01f, handling.rearGripResponseTime));
