@@ -18,7 +18,6 @@ MonoBehaviour:
   accelerationMps2: 5
   homingDistance: 40
   lateralSpeed: 3
-  catchDistance: 1.5
   shovePadding: 0.3
   vanSize: {x: 1.9, y: 1.95, z: 4.9}
   vanColor: {r: 1, g: 1, b: 1, a: 1}
