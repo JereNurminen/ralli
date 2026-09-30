@@ -50,6 +50,21 @@ public class CarHandlingConfig : ScriptableObject
     [Tooltip("Extra grip on both axles at the start of the exit boost (0.4 = +40%).")]
     public float exitBoostGrip = 0.4f;
 
+    [Header("Fake Engine (RPM for sound and rev counter)")]
+    [Tooltip("Speed range covered by each fake gear (km/h).")]
+    public float gearSpanKph = 45f;
+    public int gearCount = 5;
+    [Tooltip("Idle RPM on a 0 (off) to 1 (limiter) scale.")]
+    [Range(0f, 1f)] public float idleRpm01 = 0.12f;
+    [Tooltip("Extra RPM while on throttle.")]
+    [Range(0f, 0.3f)] public float throttleRpmBump = 0.08f;
+    [Tooltip("How fast RPM climbs on the ground (0..1 per second).")]
+    public float rpmRiseRate = 3f;
+    [Tooltip("How fast RPM falls (0..1 per second). Gear shifts and landings drop at this rate.")]
+    public float rpmFallRate = 2f;
+    [Tooltip("How fast RPM climbs to the limiter while airborne on throttle (wheels spin free).")]
+    public float airborneRpmRiseRate = 5f;
+
     [Header("Engine Heat")]
     [Tooltip("Heat gained per second while Overdrive is held (0..1). 0.125 = 8 s from cold to max.")]
     public float heatRiseRate = 0.125f;
