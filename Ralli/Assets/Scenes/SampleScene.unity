@@ -458,6 +458,7 @@ GameObject:
   - component: {fileID: 1239733286}
   - component: {fileID: 1239733285}
   - component: {fileID: 1239733290}
+  - component: {fileID: 1239733291}
   - component: {fileID: 1239733284}
   m_Layer: 0
   m_Name: RoadStream
@@ -509,6 +510,18 @@ MonoBehaviour:
   pineLeafFallbackMaterial: {fileID: 2100000, guid: c8038bd81c7ea42e886e610141cb2829, type: 2}
   birchBarkFallbackMaterial: {fileID: 2100000, guid: fc34c52496af84173956f0024900d06a, type: 2}
   pineBarkFallbackMaterial: {fileID: 2100000, guid: d2b97f5ff4551448991805ddb74a63e8, type: 2}
+--- !u!114 &1239733291
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1239733280}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: afe038e4d7fd4a5a8e6b04de2b39c7a7, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!4 &1239733282
 Transform:
   m_ObjectHideFlags: 0

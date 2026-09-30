@@ -540,20 +540,20 @@ public class TerrainStreamer : MonoBehaviour
         {
             for (int cz = minZ; cz <= maxZ; cz++)
             {
-                if (TerrainHeightField.Hash01(config.seed, cx, cz, 1) >= config.treeDensity)
+                if (TerrainHeightField.Hash01(road.GetSeed(), cx, cz, 1) >= config.treeDensity)
                 {
                     continue;
                 }
 
-                float px = (cx + Mathf.Lerp(0.15f, 0.85f, TerrainHeightField.Hash01(config.seed, cx, cz, 2))) * cell;
-                float pz = (cz + Mathf.Lerp(0.15f, 0.85f, TerrainHeightField.Hash01(config.seed, cx, cz, 3))) * cell;
+                float px = (cx + Mathf.Lerp(0.15f, 0.85f, TerrainHeightField.Hash01(road.GetSeed(), cx, cz, 2))) * cell;
+                float pz = (cz + Mathf.Lerp(0.15f, 0.85f, TerrainHeightField.Hash01(road.GetSeed(), cx, cz, 3))) * cell;
                 float groundHeight = SampleGround(px, pz, out float distance);
                 if (distance < inner || distance > outer)
                 {
                     continue;
                 }
 
-                var rng = new System.Random((int)(TerrainHeightField.Hash01(config.seed, cx, cz, 4) * int.MaxValue));
+                var rng = new System.Random((int)(TerrainHeightField.Hash01(road.GetSeed(), cx, cz, 4) * int.MaxValue));
                 GameObject prefab = SelectTreePrefab(config, rng, out bool isBirch);
                 if (prefab == null)
                 {
