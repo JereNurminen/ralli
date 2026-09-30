@@ -84,6 +84,8 @@ public class RoadStreamGenerator : MonoBehaviour
     private float designedElevationOffset;
     private int lastActiveMinChunk;
     private int lastActiveMaxChunk;
+    private float lastPlayerS;
+    private const float PlayerRoadSearchDistance = 60f;
 
     private void Start()
     {
@@ -133,6 +135,7 @@ public class RoadStreamGenerator : MonoBehaviour
     {
         ClearChunks();
         samples.Clear();
+        lastPlayerS = 0f;
         sampleBuckets.Clear();
         heightField = null;
         generation++;
@@ -1387,21 +1390,13 @@ public class RoadStreamGenerator : MonoBehaviour
             return 0f;
         }
 
-        Vector3 targetPos = target.position;
-        float bestDist = float.MaxValue;
-        float bestS = 0f;
-
-        for (int i = 0; i < samples.Count; i++)
+        // Nearest road point via the spatial index; far off the road, keep the last known position.
+        if (TryGetNearestS(target.position, PlayerRoadSearchDistance, out float s))
         {
-            float dist = (samples[i].position - targetPos).sqrMagnitude;
-            if (dist < bestDist)
-            {
-                bestDist = dist;
-                bestS = samples[i].s;
-            }
+            lastPlayerS = s;
         }
 
-        return bestS;
+        return lastPlayerS;
     }
 
     private float GetBaseChunkLength()
