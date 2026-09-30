@@ -32,6 +32,8 @@ public class CarController : MonoBehaviour
     private float overdriveFactor;
     private float heat01;
     private float engineRpm01;
+    private float drivePush;
+    private float slideEntrySpeed;
     private float overdriveHeldTime;
     private float exitBoostTimer;
     private float frontGrip = 1f;
@@ -103,10 +105,25 @@ public class CarController : MonoBehaviour
         float exitGrip = 1f + handling.exitBoostGrip * ExitBoost01;
         frontGripUsage = ApplyAxleGrip(frontAxleOffset, steerAngle, handling.frontGripG * frontGrip * exitGrip, frontShare);
         float spinCatch = GetSpinCatch();
-        float rearGripNow = Mathf.Lerp(rearGrip, 1f, spinCatch);
+        float rearGripNow = Mathf.Lerp(rearGrip * GetPowerOversteerFactor(), 1f, spinCatch);
         rearGripUsage = ApplyAxleGrip(-rearAxleOffset, 0f, handling.rearGripG * rearGripNow * exitGrip, 1f - frontShare);
         DampSpin(spinCatch, deltaTime);
         ApplyDriftMomentum(throttle);
+    }
+
+    // Engine push uses up part of the rear's grip budget (friction circle, scaled by powerOversteer),
+    // so full power loosens the tail even at low speed where corners need little sideways grip.
+    private float GetPowerOversteerFactor()
+    {
+        float rearGripAccel = Mathf.Max(0.1f, handling.rearGripG * Physics.gravity.magnitude);
+        float used = Mathf.Clamp01(drivePush * handling.powerOversteer / rearGripAccel);
+        return Mathf.Max(0.25f, Mathf.Sqrt(1f - used * used));
+    }
+
+    // 0 when gripping, 1 in a full slide (drift angle between the configured slide angles).
+    private float GetSlideAmount()
+    {
+        return Mathf.InverseLerp(handling.driftMomentumAngles.x, handling.driftMomentumAngles.y, Mathf.Abs(GetDriftAngle()));
     }
 
     // Steering the same way the car is sliding (drift angle and steer share a sign) = counter-steer.
@@ -148,28 +165,27 @@ public class CarController : MonoBehaviour
         rb.angularVelocity -= transform.up * (yawRate * (1f - keep));
     }
 
-    // While sliding on throttle, push along the direction of travel to offset the speed lost to
-    // sideways grip, so drifts carry speed instead of bogging down.
+    // While sliding on throttle, top speed back up to what it was when the slide began, so drifts
+    // carry their speed instead of bogging down, without ever speeding the car up.
     private void ApplyDriftMomentum(float throttle)
     {
-        if (handling.driftMomentum <= 0f || throttle < 0.5f || inReverse)
-        {
-            return;
-        }
-
-        float amount = Mathf.InverseLerp(handling.driftMomentumAngles.x, handling.driftMomentumAngles.y, Mathf.Abs(GetDriftAngle()));
+        Vector3 travel = Vector3.ProjectOnPlane(rb.linearVelocity, transform.up);
+        float speed = travel.magnitude;
+        float amount = GetSlideAmount();
         if (amount <= 0f)
         {
+            slideEntrySpeed = speed;
             return;
         }
 
-        Vector3 travel = Vector3.ProjectOnPlane(rb.linearVelocity, transform.up);
-        if (travel.sqrMagnitude < 1f)
+        float missing = slideEntrySpeed - speed;
+        if (handling.driftMomentum <= 0f || throttle < 0.5f || inReverse || missing <= 0f || speed < 1f)
         {
             return;
         }
 
-        rb.AddForce(travel.normalized * (handling.driftMomentum * amount), ForceMode.Acceleration);
+        float push = Mathf.Min(handling.driftMomentum * amount, missing / Time.fixedDeltaTime);
+        rb.AddForce(travel / speed * push, ForceMode.Acceleration);
     }
 
     private void ProbeGround()
@@ -328,7 +344,11 @@ public class CarController : MonoBehaviour
             float heatPower = Mathf.Lerp(1f, handling.powerAtMaxHeat, Mathf.InverseLerp(handling.heatTaperStart, 1f, heat01));
             push = handling.baseAcceleration * Mathf.Lerp(1f, handling.overdrivePowerMultiplier, overdriveFactor) * heatPower * throttle;
             push += handling.exitBoostAcceleration * ExitBoost01 * throttle * (1f - input.Brake);
+            // Sideways, part of the power just spins the wheels instead of driving the car forward.
+            push *= Mathf.Lerp(1f, handling.slidePowerFactor, GetSlideAmount());
         }
+
+        drivePush = Mathf.Max(0f, push);
 
         // Cancel most of the uphill gravity pull so climbs don't bleed speed.
         float gravityAlongForward = Vector3.Dot(Physics.gravity, transform.forward);
