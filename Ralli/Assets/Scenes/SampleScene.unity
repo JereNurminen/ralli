@@ -1673,6 +1673,7 @@ MonoBehaviour:
   steeringWheelName: SteeringWheel
   steeringRatio: 4
   maxSteeringWheelDegrees: 180
+  steeringWheelSmoothTime: 0.08
   speedometer:
     partName: Gauge_Speed_Needle
     sweepDegrees: 240
@@ -1766,36 +1767,6 @@ MonoBehaviour:
   engagePunchVolume: 0.5
   engagePunchPitch: 0.08
   engagePunchTime: 0.35
---- !u!114 &7351904412
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1993720258}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 6b859083a91d4883aca5fcb8c36b100e, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  screechClips:
-  - {fileID: 8300000, guid: 393307d4dbd64e4086fc9f613f7905ab, type: 3}
-  - {fileID: 8300000, guid: 78becc364215437a84bdc7adbaf45f2b, type: 3}
-  crashClips:
-  - {fileID: 8300000, guid: 0b9ca057f8ae460c8a05d7d88c3ad724, type: 3}
-  - {fileID: 8300000, guid: 6a84a077eae04a2b9f7ab53c6786fa44, type: 3}
-  mixerGroup: {fileID: 0}
-  screechVolume: 0.5
-  screechAngles: {x: 10, y: 30}
-  screechSpeedsKph: {x: 20, y: 60}
-  handbrakeScreech: 0.6
-  screechFadeInTime: 0.08
-  screechFadeOutTime: 0.25
-  screechPitch: {x: 0.9, y: 1.05}
-  crashVolume: 1
-  crashSeverity: {x: 1.5, y: 8}
-  quietestCrashVolume: 0.25
-  crashCooldown: 0.15
 --- !u!1001 &1993720300
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -2153,17 +2124,18 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 099ef5b7ddb541289e4f19832cdb99f0, type: 2}
   - {fileID: 11400000, guid: d9663c52f76542f38ecf8d3821f0b640, type: 2}
   playOnStart: 1
+  waitForEngineStart: 1
+  musicStartDelay: 1
   musicGroup: {fileID: 24300004, guid: e6b2c624156b4b168952112aaa1c9d39, type: 2}
   volumeParameter: MusicVolume
   bassGainParameter: MusicBassGain
   baseVolumeDb: -4
   mixSmoothTime: 0.8
   evaluateInterval: 0.3
-  speedBoostRangeKph: {x: 100, y: 150}
-  highSpeedBoostDb: 2
-  goodDrivingBassDb: 3
-  cleanStreakSeconds: 8
-  cleanStreakMinSpeedKph: 70
+  maxVolumeBoostDb: 3
+  volumeBoostFullMultiplier: 1.5
+  maxBassBoostDb: 5
+  bassBoostFullMultiplier: 2
   impactSeverityThresholds: {x: 5, y: 12}
   significantDuckDb: -10
   majorDuckDb: -20
@@ -2370,6 +2342,39 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 40c2a532158f441ab5ed571f4255fb71, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  fontSize: 28
+  feedLifetime: 2.5
+  maxFeedLines: 5
+--- !u!114 &7351904412
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1993720258}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6b859083a91d4883aca5fcb8c36b100e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  screechClips:
+  - {fileID: 8300000, guid: 393307d4dbd64e4086fc9f613f7905ab, type: 3}
+  - {fileID: 8300000, guid: 78becc364215437a84bdc7adbaf45f2b, type: 3}
+  crashClips:
+  - {fileID: 8300000, guid: 0b9ca057f8ae460c8a05d7d88c3ad724, type: 3}
+  - {fileID: 8300000, guid: 6a84a077eae04a2b9f7ab53c6786fa44, type: 3}
+  mixerGroup: {fileID: 0}
+  screechVolume: 0.62
+  screechAngles: {x: 10, y: 30}
+  screechSpeedsKph: {x: 20, y: 60}
+  handbrakeScreech: 0.6
+  screechFadeInTime: 0.08
+  screechFadeOutTime: 0.25
+  screechPitch: {x: 0.9, y: 1.05}
+  crashVolume: 1
+  crashSeverity: {x: 1.5, y: 8}
+  quietestCrashVolume: 0.331
+  crashCooldown: 0.15
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
