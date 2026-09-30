@@ -457,6 +457,7 @@ GameObject:
   - component: {fileID: 1239733283}
   - component: {fileID: 1239733286}
   - component: {fileID: 1239733285}
+  - component: {fileID: 1239733290}
   - component: {fileID: 1239733284}
   m_Layer: 0
   m_Name: RoadStream
@@ -482,6 +483,22 @@ MonoBehaviour:
   roadMaterial: {fileID: 2100000, guid: d8887addcf39b46cc8ec8c2dde220d10, type: 2}
   railMaterial: {fileID: 0}
   railPhysicsMaterial: {fileID: 13400000, guid: b6d4d1c403cf54dc285907bb25bb2600, type: 2}
+  generateOnStart: 1
+--- !u!114 &1239733290
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1239733280}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 091d5c0fe59347a1a33f1da89d5cb505, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  road: {fileID: 1239733281}
+  target: {fileID: 0}
+  groundMaterial: {fileID: 2100000, guid: d8887addcf39b46cc8ec8c2dde220d10, type: 2}
   birchTreePrefabs:
   - {fileID: 919132149155446097, guid: 62828c077404f4d37b7de1940913e6b3, type: 3}
   - {fileID: 919132149155446097, guid: e9d5ca91c087b4b7a8e0eac25b716ac9, type: 3}
@@ -492,7 +509,6 @@ MonoBehaviour:
   pineLeafFallbackMaterial: {fileID: 2100000, guid: c8038bd81c7ea42e886e610141cb2829, type: 2}
   birchBarkFallbackMaterial: {fileID: 2100000, guid: fc34c52496af84173956f0024900d06a, type: 2}
   pineBarkFallbackMaterial: {fileID: 2100000, guid: d2b97f5ff4551448991805ddb74a63e8, type: 2}
-  generateOnStart: 1
 --- !u!4 &1239733282
 Transform:
   m_ObjectHideFlags: 0

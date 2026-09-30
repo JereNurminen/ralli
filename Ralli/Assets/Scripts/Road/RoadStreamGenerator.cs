@@ -27,14 +27,6 @@ public class RoadStreamGenerator : MonoBehaviour
         public readonly List<GameObject> railObjects = new List<GameObject>();
     }
 
-    private struct ForestTriangle
-    {
-        public Vector3 a;
-        public Vector3 b;
-        public Vector3 c;
-        public float cumulativeArea;
-    }
-
     private class ChunkLayout
     {
         public int chunkIndex;
@@ -59,12 +51,6 @@ public class RoadStreamGenerator : MonoBehaviour
     [SerializeField] private Material roadMaterial;
     [SerializeField] private Material railMaterial;
     [SerializeField] private PhysicsMaterial railPhysicsMaterial;
-    [SerializeField] private GameObject[] birchTreePrefabs;
-    [SerializeField] private GameObject[] pineTreePrefabs;
-    [SerializeField] private Material birchLeafFallbackMaterial;
-    [SerializeField] private Material pineLeafFallbackMaterial;
-    [SerializeField] private Material birchBarkFallbackMaterial;
-    [SerializeField] private Material pineBarkFallbackMaterial;
 
     [Header("Runtime")]
     [SerializeField] private bool generateOnStart = true;
@@ -72,7 +58,11 @@ public class RoadStreamGenerator : MonoBehaviour
     private readonly List<RoadSample> samples = new List<RoadSample>(4096);
     private readonly Dictionary<int, ChunkData> chunks = new Dictionary<int, ChunkData>();
     private readonly List<ChunkLayout> chunkLayouts = new List<ChunkLayout>(256);
-    private readonly Dictionary<int, List<Vector2>> chunkTreePositions = new Dictionary<int, List<Vector2>>();
+    // Sample indices bucketed by horizontal position, for "nearest road" queries from terrain.
+    private readonly Dictionary<long, List<int>> sampleBuckets = new Dictionary<long, List<int>>();
+    private const float SampleBucketSize = 16f;
+    private TerrainHeightField heightField;
+    private int generation;
     private Material runtimeRailFallbackMaterial;
 
     private enum PieceType { Straight, Curve, Designed }
@@ -89,6 +79,7 @@ public class RoadStreamGenerator : MonoBehaviour
     private bool currentDesignedPieceMirrored;
     private float proceduralDistanceSinceLastDesigned;
     private float cumulativeYawDeg;
+    private float designedElevationOffset;
     private int lastActiveMinChunk;
     private int lastActiveMaxChunk;
 
@@ -140,6 +131,9 @@ public class RoadStreamGenerator : MonoBehaviour
     {
         ClearChunks();
         samples.Clear();
+        sampleBuckets.Clear();
+        heightField = null;
+        generation++;
         chunkLayouts.Clear();
         ResetPieceState();
 
@@ -237,6 +231,115 @@ public class RoadStreamGenerator : MonoBehaviour
         return EstimatePlayerS();
     }
 
+    // Bumps whenever the road is rebuilt from scratch; terrain uses it to throw away stale tiles.
+    public int Generation => generation;
+    public int SampleCount => samples.Count;
+    public bool IsReady => config != null && samples.Count > 0 && heightField != null;
+    public RoadGenerationConfig Config => config;
+    public TerrainHeightField HeightField => heightField;
+
+    // Distance from centerline to the ditch outer lip, where terrain takes over.
+    public float CorridorHalfWidth => config == null
+        ? 0f
+        : config.roadWidth * 0.5f + Mathf.Max(0f, config.shoulderWidth) + Mathf.Max(0f, config.ditchWidth);
+
+    public Vector3 GetSamplePosition(int index)
+    {
+        return samples[index].position;
+    }
+
+    public Vector3 GetTargetBearingDirection()
+    {
+        if (config == null || samples.Count == 0)
+        {
+            return Vector3.forward;
+        }
+
+        float startYaw = Mathf.Atan2(samples[0].tangent.x, samples[0].tangent.z) * Mathf.Rad2Deg;
+        return Quaternion.Euler(0f, startYaw + config.targetBearing, 0f) * Vector3.forward;
+    }
+
+    // Nearest road sample within maxDistance (horizontal). lipHeight is the height of the ditch
+    // outer lip on that side of the road, following the road's bank.
+    public bool TryGetRoadProximity(float x, float z, float maxDistance, out float distance, out float lipHeight)
+    {
+        distance = float.MaxValue;
+        lipHeight = 0f;
+        if (config == null || samples.Count == 0)
+        {
+            return false;
+        }
+
+        int cellRadius = Mathf.CeilToInt(maxDistance / SampleBucketSize);
+        int cx = Mathf.FloorToInt(x / SampleBucketSize);
+        int cz = Mathf.FloorToInt(z / SampleBucketSize);
+        float bestSq = maxDistance * maxDistance;
+        int bestIndex = -1;
+
+        for (int dx = -cellRadius; dx <= cellRadius; dx++)
+        {
+            for (int dz = -cellRadius; dz <= cellRadius; dz++)
+            {
+                if (!sampleBuckets.TryGetValue(GetBucketKey(cx + dx, cz + dz), out List<int> bucket))
+                {
+                    continue;
+                }
+
+                for (int i = 0; i < bucket.Count; i++)
+                {
+                    Vector3 p = samples[bucket[i]].position;
+                    float sq = (p.x - x) * (p.x - x) + (p.z - z) * (p.z - z);
+                    if (sq < bestSq)
+                    {
+                        bestSq = sq;
+                        bestIndex = bucket[i];
+                    }
+                }
+            }
+        }
+
+        if (bestIndex < 0)
+        {
+            return false;
+        }
+
+        RoadSample sample = samples[bestIndex];
+        Vector2 rightFlat = new Vector2(sample.right.x, sample.right.z);
+        float flatLength = Mathf.Max(0.0001f, rightFlat.magnitude);
+        float lateral = ((x - sample.position.x) * rightFlat.x + (z - sample.position.z) * rightFlat.y) / flatLength;
+        float bankSlope = sample.right.y / flatLength;
+        float corridor = CorridorHalfWidth;
+
+        distance = Mathf.Sqrt(bestSq);
+        lipHeight = sample.position.y + Mathf.Clamp(lateral, -corridor, corridor) * bankSlope + config.forestFloorYOffset;
+        return true;
+    }
+
+    private void AddSampleToBucket(int sampleIndex)
+    {
+        Vector3 p = samples[sampleIndex].position;
+        long key = GetBucketKey(Mathf.FloorToInt(p.x / SampleBucketSize), Mathf.FloorToInt(p.z / SampleBucketSize));
+        if (!sampleBuckets.TryGetValue(key, out List<int> bucket))
+        {
+            bucket = new List<int>(16);
+            sampleBuckets[key] = bucket;
+        }
+
+        bucket.Add(sampleIndex);
+    }
+
+    private static long GetBucketKey(int cx, int cz)
+    {
+        return ((long)cx << 32) ^ (uint)cz;
+    }
+
+    // Tightest turn (deg/m) the corridor mesh can take without its inner edge folding.
+    private float GetMaxSafeTurnRate()
+    {
+        float minRadius = Mathf.Max(1f, CorridorHalfWidth * Mathf.Max(1f, config.corridorRadiusMargin));
+        return Mathf.Rad2Deg / minRadius;
+    }
+
     private void EnsureChunkRange(int minChunk, int maxChunk)
     {
         for (int chunkIndex = minChunk; chunkIndex <= maxChunk; chunkIndex++)
@@ -279,7 +382,6 @@ public class RoadStreamGenerator : MonoBehaviour
         Mesh colliderMesh = BuildChunkColliderMesh(chunkIndex, startSampleIndex, endSampleIndex);
         meshFilter.sharedMesh = visualMesh;
         meshCollider.sharedMesh = colliderMesh;
-        SpawnTreesForChunk(chunkIndex, chunkObject, visualMesh, startSampleIndex, endSampleIndex);
 
         ChunkData chunk = new ChunkData
         {
@@ -322,12 +424,11 @@ public class RoadStreamGenerator : MonoBehaviour
             for (int j = 0; j < profileCount; j++)
             {
                 ProfilePoint point = profile[j];
-                float adjustedLateral = AdjustLateralForCurvature(point.lateral, sample.turnRateDegPerMeter);
-                Vector3 top = sample.position + sample.right * adjustedLateral - sample.up * point.drop;
+                Vector3 top = sample.position + sample.right * point.lateral - sample.up * point.drop;
                 Vector3 bottom = top - sample.up * thickness;
                 // Encode road-space UVs for procedural markings:
                 // x = lateral offset from centerline (meters), y = distance along road (meters).
-                float u = adjustedLateral;
+                float u = point.lateral;
                 float v = sample.s;
 
                 int topIndex = rowBase + j;
@@ -436,8 +537,7 @@ public class RoadStreamGenerator : MonoBehaviour
             for (int j = 0; j < profileCount; j++)
             {
                 ProfilePoint point = profile[j];
-                float adjustedLateral = AdjustLateralForCurvature(point.lateral, sample.turnRateDegPerMeter);
-                vertices[rowBase + j] = sample.position + sample.right * adjustedLateral - sample.up * point.drop;
+                vertices[rowBase + j] = sample.position + sample.right * point.lateral - sample.up * point.drop;
             }
         }
 
@@ -669,6 +769,9 @@ public class RoadStreamGenerator : MonoBehaviour
         return Mathf.Lerp(endCenterHeight, beamCenterHeight, tSmoothed);
     }
 
+    // Road corridor cross-section: apron → ditch → shoulder → asphalt → shoulder → ditch → apron.
+    // Everything beyond the ditch lip is terrain (TerrainStreamer), so this stays narrow and
+    // never folds as long as turn rate respects GetMaxSafeTurnRate().
     private ProfilePoint[] BuildProfile(float halfRoadWidth)
     {
         float shoulderWidth = Mathf.Max(0f, config.shoulderWidth);
@@ -676,33 +779,19 @@ public class RoadStreamGenerator : MonoBehaviour
         float ditchWidth = Mathf.Max(0f, config.ditchWidth);
         float ditchDepth = Mathf.Max(0f, config.ditchDepth);
         float ditchBottomFlatWidth = Mathf.Clamp(config.ditchBottomFlatWidth, 0f, ditchWidth);
-        float dropSkirtDepth = Mathf.Max(0f, config.dropSkirtDepth);
-        float forestFloorDrop = -config.forestFloorYOffset;
-        float collidableForestWidth = Mathf.Max(0f, config.collidableForestWidth);
+        float lipDrop = -config.forestFloorYOffset;
+        float apronDepth = Mathf.Max(0f, config.corridorApronDepth);
 
         Color asphalt = new Color(1f, 0f, 0f, 0f);
         Color dirt = new Color(0f, 1f, 0f, 0f);
         Color forest = new Color(0f, 1f, 1f, 0f);
 
-        bool hasEdge = shoulderWidth > 0.001f || ditchWidth > 0.001f
-                       || collidableForestWidth > 0.001f || dropSkirtDepth > 0.001f;
-
-        if (!hasEdge)
-        {
-            return new[]
-            {
-                new ProfilePoint { lateral = -halfRoadWidth, drop = 0f, color = asphalt },
-                new ProfilePoint { lateral = halfRoadWidth, drop = 0f, color = asphalt }
-            };
-        }
-
         float shoulderOuter = halfRoadWidth + shoulderWidth;
         float ditchOuter = shoulderOuter + ditchWidth;
-        float forestOuter = ditchOuter + collidableForestWidth;
         float ditchSideWidth = Mathf.Max(0f, (ditchWidth - ditchBottomFlatWidth) * 0.5f);
         float ditchBottomInner = shoulderOuter + ditchSideWidth;
         float ditchBottomOuter = ditchOuter - ditchSideWidth;
-        float ditchBottomDrop = Mathf.Max(shoulderDrop, forestFloorDrop) + ditchDepth;
+        float ditchBottomDrop = Mathf.Max(shoulderDrop, lipDrop) + ditchDepth;
 
         var points = new List<ProfilePoint>(12);
 
@@ -718,20 +807,14 @@ public class RoadStreamGenerator : MonoBehaviour
             points.Add(new ProfilePoint { lateral = lateral, drop = drop, color = color });
         }
 
-        // Left side: skirt bottom → forest outer edge → ditch → shoulder
-        if (dropSkirtDepth > 0.001f)
+        if (apronDepth > 0.001f)
         {
-            AddPoint(-forestOuter, forestFloorDrop + dropSkirtDepth, forest);
-        }
-
-        if (collidableForestWidth > 0.001f)
-        {
-            AddPoint(-forestOuter, forestFloorDrop, forest);
+            AddPoint(-ditchOuter, lipDrop + apronDepth, forest);
         }
 
         if (ditchWidth > 0.001f)
         {
-            AddPoint(-ditchOuter, forestFloorDrop, dirt);
+            AddPoint(-ditchOuter, lipDrop, forest);
             AddPoint(-ditchBottomOuter, ditchBottomDrop, dirt);
             if (ditchBottomFlatWidth > 0.001f)
             {
@@ -739,19 +822,10 @@ public class RoadStreamGenerator : MonoBehaviour
             }
         }
 
-        if (hasEdge)
-        {
-            AddPoint(-shoulderOuter, shoulderDrop, dirt);
-        }
-
+        AddPoint(-shoulderOuter, shoulderDrop, dirt);
         AddPoint(-halfRoadWidth, 0f, asphalt);
         AddPoint(halfRoadWidth, 0f, asphalt);
-
-        // Right side: shoulder → ditch → forest outer edge → skirt bottom
-        if (hasEdge)
-        {
-            AddPoint(shoulderOuter, shoulderDrop, dirt);
-        }
+        AddPoint(shoulderOuter, shoulderDrop, dirt);
 
         if (ditchWidth > 0.001f)
         {
@@ -760,17 +834,12 @@ public class RoadStreamGenerator : MonoBehaviour
                 AddPoint(ditchBottomInner, ditchBottomDrop, dirt);
             }
             AddPoint(ditchBottomOuter, ditchBottomDrop, dirt);
-            AddPoint(ditchOuter, forestFloorDrop, dirt);
+            AddPoint(ditchOuter, lipDrop, forest);
         }
 
-        if (collidableForestWidth > 0.001f)
+        if (apronDepth > 0.001f)
         {
-            AddPoint(forestOuter, forestFloorDrop, forest);
-        }
-
-        if (dropSkirtDepth > 0.001f)
-        {
-            AddPoint(forestOuter, forestFloorDrop + dropSkirtDepth, forest);
+            AddPoint(ditchOuter, lipDrop + apronDepth, forest);
         }
 
         return points.ToArray();
@@ -851,451 +920,6 @@ public class RoadStreamGenerator : MonoBehaviour
         return normals;
     }
 
-    private float AdjustLateralForCurvature(float lateral, float turnRateDegPerMeter)
-    {
-        float turnRateRad = Mathf.Abs(turnRateDegPerMeter) * Mathf.Deg2Rad;
-        if (turnRateRad < 0.0001f)
-            return lateral;
-
-        float radius = 1f / turnRateRad;
-
-        // On a curve with radius R, a point at lateral offset d from the centerline
-        // traces an arc of radius (R - d) on the inside, or (R + d) on the outside.
-        // When (R - d) gets small, consecutive sample strips overlap on the inside.
-        //
-        // Positive turn rate = turning left = inside is at positive lateral (right side).
-        float insideSign = Mathf.Sign(turnRateDegPerMeter);
-        float insideLateral = lateral * insideSign;
-
-        if (insideLateral <= 0f)
-            return lateral; // Outside of curve — no issue.
-
-        // Don't compress the road surface itself (asphalt + shoulder).
-        float safeZone = config.roadWidth * 0.5f + config.shoulderWidth;
-        if (insideLateral <= safeZone)
-            return lateral;
-
-        // Beyond the safe zone, compress toward safeZone based on curvature.
-        // The inner profile must not extend past ~half the radius, because on a
-        // hairpin the returning road occupies the space beyond that.
-        float radiusFactor = Mathf.Clamp(config.innerProfileCompressionRadiusFactor, 0.4f, 0.95f);
-        float maxExtent = Mathf.Max(0f, radius * radiusFactor - safeZone);
-        float requested = insideLateral - safeZone;
-
-        float compressed;
-        if (maxExtent < 0.1f)
-        {
-            compressed = 0f;
-        }
-        else
-        {
-            // Exponential falloff: asymptotically approaches maxExtent.
-            compressed = maxExtent * (1f - Mathf.Exp(-requested / maxExtent));
-        }
-
-        return (safeZone + compressed) * insideSign;
-    }
-
-    private void SpawnTreesForChunk(int chunkIndex, GameObject chunkObject, Mesh visualMesh, int startSampleIndex, int endSampleIndex)
-    {
-        if (config == null || !config.spawnForestTrees || chunkObject == null || visualMesh == null)
-        {
-            return;
-        }
-
-        int treesPerChunk = Mathf.Max(0, config.forestTreesPerChunk);
-        if (treesPerChunk <= 0)
-        {
-            return;
-        }
-
-        float safeRadius = Mathf.Max(0f, config.treeTrunkSafeRadius);
-        int attempts = Mathf.Max(treesPerChunk, treesPerChunk * Mathf.Max(1, config.treeSpawnAttemptsMultiplier));
-
-        List<ForestTriangle> forestTriangles = BuildForestTriangles(visualMesh);
-        if (forestTriangles.Count == 0)
-        {
-            if (chunkIndex == 0)
-            {
-                Debug.LogWarning("[RoadStream] No eligible forest-floor triangles found for tree spawning in chunk 0.");
-            }
-            return;
-        }
-
-        var rng = new System.Random((config.seed * 73856093) ^ (chunkIndex * 19349663));
-        var localTreePositions = new List<Vector2>(treesPerChunk);
-
-        for (int attempt = 0; attempt < attempts && localTreePositions.Count < treesPerChunk; attempt++)
-        {
-            Vector3 spawnPoint;
-            if (!TrySamplePointOnForestFloor(forestTriangles, rng, out spawnPoint))
-            {
-                break;
-            }
-
-            Vector2 spawn2D = new Vector2(spawnPoint.x, spawnPoint.z);
-            if (safeRadius > 0.001f && (IsTreeTooClose(spawn2D, safeRadius) || IsTreeTooClose(localTreePositions, spawn2D, safeRadius)))
-            {
-                continue;
-            }
-
-            if (!IsPointFarEnoughFromDitch(spawnPoint, startSampleIndex, endSampleIndex))
-            {
-                continue;
-            }
-
-            GameObject prefab = SelectTreePrefab(rng, out bool isBirch);
-            if (prefab == null)
-            {
-                break;
-            }
-
-            Quaternion yaw = Quaternion.Euler(0f, (float)rng.NextDouble() * 360f, 0f);
-            Quaternion modelOffset = Quaternion.Euler(config.treeModelRotationOffsetEuler);
-            GameObject instance = Instantiate(prefab, spawnPoint, yaw * modelOffset, chunkObject.transform);
-            ResolveTreeFallbackMaterials(isBirch, out Material leafFallback, out Material barkFallback);
-            ApplyTreeFallbackMaterialsIfNeeded(instance, leafFallback, barkFallback);
-            AddTreeTrunkCollider(chunkObject.transform, spawnPoint, localTreePositions.Count);
-            localTreePositions.Add(spawn2D);
-        }
-
-        if (localTreePositions.Count > 0)
-        {
-            chunkTreePositions[chunkIndex] = localTreePositions;
-        }
-    }
-
-    private List<ForestTriangle> BuildForestTriangles(Mesh mesh)
-    {
-        var result = new List<ForestTriangle>(128);
-        Vector3[] vertices = mesh.vertices;
-        int[] triangles = mesh.triangles;
-        Color[] colors = mesh.colors;
-
-        if (vertices == null || triangles == null || colors == null || colors.Length != vertices.Length)
-        {
-            return result;
-        }
-
-        float cumulativeArea = 0f;
-        for (int i = 0; i <= triangles.Length - 3; i += 3)
-        {
-            int i0 = triangles[i];
-            int i1 = triangles[i + 1];
-            int i2 = triangles[i + 2];
-            if (i0 < 0 || i1 < 0 || i2 < 0 || i0 >= vertices.Length || i1 >= vertices.Length || i2 >= vertices.Length)
-            {
-                continue;
-            }
-
-            float avgBlue = (colors[i0].b + colors[i1].b + colors[i2].b) / 3f;
-            float avgRed = (colors[i0].r + colors[i1].r + colors[i2].r) / 3f;
-            // Forest band blends with dirt near ditch edge, so allow mixed B while excluding asphalt-heavy tris.
-            if (avgBlue < 0.15f || avgRed > 0.2f)
-            {
-                continue;
-            }
-
-            Vector3 a = vertices[i0];
-            Vector3 b = vertices[i1];
-            Vector3 c = vertices[i2];
-            Vector3 normal = Vector3.Cross(b - a, c - a);
-            float area = normal.magnitude * 0.5f;
-            if (area < 0.001f)
-            {
-                continue;
-            }
-
-            if (Vector3.Dot(normal.normalized, Vector3.up) < 0.3f)
-            {
-                continue;
-            }
-
-            cumulativeArea += area;
-            result.Add(new ForestTriangle
-            {
-                a = a,
-                b = b,
-                c = c,
-                cumulativeArea = cumulativeArea
-            });
-        }
-
-        return result;
-    }
-
-    private bool TrySamplePointOnForestFloor(List<ForestTriangle> forestTriangles, System.Random rng, out Vector3 point)
-    {
-        point = Vector3.zero;
-        if (forestTriangles == null || forestTriangles.Count == 0)
-        {
-            return false;
-        }
-
-        float totalArea = forestTriangles[forestTriangles.Count - 1].cumulativeArea;
-        if (totalArea <= 0f)
-        {
-            return false;
-        }
-
-        float targetArea = (float)rng.NextDouble() * totalArea;
-        int triangleIndex = 0;
-        while (triangleIndex < forestTriangles.Count - 1 && forestTriangles[triangleIndex].cumulativeArea < targetArea)
-        {
-            triangleIndex++;
-        }
-
-        ForestTriangle tri = forestTriangles[triangleIndex];
-        float r1 = Mathf.Sqrt((float)rng.NextDouble());
-        float r2 = (float)rng.NextDouble();
-        float u = 1f - r1;
-        float v = r1 * (1f - r2);
-        float w = r1 * r2;
-        point = tri.a * u + tri.b * v + tri.c * w;
-        return true;
-    }
-
-    private bool IsTreeTooClose(Vector2 position, float safeRadius)
-    {
-        float safeRadiusSq = safeRadius * safeRadius;
-        foreach (KeyValuePair<int, List<Vector2>> pair in chunkTreePositions)
-        {
-            List<Vector2> treePositions = pair.Value;
-            for (int i = 0; i < treePositions.Count; i++)
-            {
-                if ((treePositions[i] - position).sqrMagnitude < safeRadiusSq)
-                {
-                    return true;
-                }
-            }
-        }
-
-        return false;
-    }
-
-    private bool IsPointFarEnoughFromDitch(Vector3 point, int startSampleIndex, int endSampleIndex)
-    {
-        if (config == null || samples.Count == 0)
-        {
-            return true;
-        }
-
-        int start = Mathf.Clamp(startSampleIndex, 0, samples.Count - 1);
-        int end = Mathf.Clamp(endSampleIndex, start, samples.Count - 1);
-
-        int nearestIndex = start;
-        float nearestDistSq = float.MaxValue;
-        Vector2 point2D = new Vector2(point.x, point.z);
-        for (int i = start; i <= end; i++)
-        {
-            Vector3 samplePos = samples[i].position;
-            Vector2 sample2D = new Vector2(samplePos.x, samplePos.z);
-            float distSq = (sample2D - point2D).sqrMagnitude;
-            if (distSq < nearestDistSq)
-            {
-                nearestDistSq = distSq;
-                nearestIndex = i;
-            }
-        }
-
-        RoadSample nearestSample = samples[nearestIndex];
-        Vector3 delta = point - nearestSample.position;
-        float lateral = Mathf.Abs(Vector3.Dot(delta, nearestSample.right));
-        float ditchOuter = config.roadWidth * 0.5f + Mathf.Max(0f, config.shoulderWidth) + Mathf.Max(0f, config.ditchWidth);
-        float required = ditchOuter + Mathf.Max(0f, config.treeDitchClearance);
-        return lateral >= required;
-    }
-
-    private static bool IsTreeTooClose(List<Vector2> treePositions, Vector2 position, float safeRadius)
-    {
-        float safeRadiusSq = safeRadius * safeRadius;
-        for (int i = 0; i < treePositions.Count; i++)
-        {
-            if ((treePositions[i] - position).sqrMagnitude < safeRadiusSq)
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private void AddTreeTrunkCollider(Transform parent, Vector3 worldPosition, int index)
-    {
-        if (config == null || parent == null)
-        {
-            return;
-        }
-
-        float width = Mathf.Max(0.1f, config.treeColliderWidth);
-        float height = Mathf.Max(0.5f, config.treeColliderHeight);
-
-        GameObject colliderObject = new GameObject($"TreeCollider_{index:000}");
-        colliderObject.transform.SetParent(parent, true);
-        colliderObject.transform.SetPositionAndRotation(worldPosition, Quaternion.identity);
-
-        BoxCollider box = colliderObject.AddComponent<BoxCollider>();
-        box.center = new Vector3(0f, height * 0.5f, 0f);
-        box.size = new Vector3(width, height, width);
-    }
-
-    private GameObject SelectTreePrefab(System.Random rng, out bool isBirch)
-    {
-        bool chooseBirch = rng.NextDouble() < Mathf.Clamp01(config.birchRatio);
-        isBirch = chooseBirch;
-        GameObject[] primary = chooseBirch ? birchTreePrefabs : pineTreePrefabs;
-        GameObject[] secondary = chooseBirch ? pineTreePrefabs : birchTreePrefabs;
-
-        GameObject prefab = ChooseRandomPrefab(primary, rng);
-        if (prefab != null)
-        {
-            return prefab;
-        }
-
-        isBirch = !chooseBirch;
-        return ChooseRandomPrefab(secondary, rng);
-    }
-
-    private static GameObject ChooseRandomPrefab(GameObject[] prefabs, System.Random rng)
-    {
-        if (prefabs == null || prefabs.Length == 0)
-        {
-            return null;
-        }
-
-        int start = rng.Next(0, prefabs.Length);
-        for (int i = 0; i < prefabs.Length; i++)
-        {
-            GameObject prefab = prefabs[(start + i) % prefabs.Length];
-            if (prefab != null)
-            {
-                return prefab;
-            }
-        }
-
-        return null;
-    }
-
-    private void ResolveTreeFallbackMaterials(bool isBirch, out Material leafFallback, out Material barkFallback)
-    {
-        leafFallback = isBirch ? birchLeafFallbackMaterial : pineLeafFallbackMaterial;
-        barkFallback = isBirch ? birchBarkFallbackMaterial : pineBarkFallbackMaterial;
-
-#if UNITY_EDITOR
-        if (leafFallback == null)
-        {
-            string leafPath = isBirch
-                ? "Assets/Materials/Trees/BirchStylizedLeaf.mat"
-                : "Assets/Materials/Trees/PineStylizedLeaf.mat";
-            leafFallback = UnityEditor.AssetDatabase.LoadAssetAtPath<Material>(leafPath);
-        }
-
-        if (barkFallback == null)
-        {
-            string barkPath = isBirch
-                ? "Assets/Materials/Trees/BirchBarkFallback.mat"
-                : "Assets/Materials/Trees/PineBarkFallback.mat";
-            barkFallback = UnityEditor.AssetDatabase.LoadAssetAtPath<Material>(barkPath);
-        }
-
-        if (isBirch)
-        {
-            if (leafFallback != null)
-            {
-                birchLeafFallbackMaterial = leafFallback;
-            }
-
-            if (barkFallback != null)
-            {
-                birchBarkFallbackMaterial = barkFallback;
-            }
-        }
-        else
-        {
-            if (leafFallback != null)
-            {
-                pineLeafFallbackMaterial = leafFallback;
-            }
-
-            if (barkFallback != null)
-            {
-                pineBarkFallbackMaterial = barkFallback;
-            }
-        }
-#endif
-    }
-
-    private static void ApplyTreeFallbackMaterialsIfNeeded(GameObject instance, Material leafFallbackMaterial, Material barkFallbackMaterial)
-    {
-        if (instance == null || leafFallbackMaterial == null)
-        {
-            return;
-        }
-
-        Renderer[] renderers = instance.GetComponentsInChildren<Renderer>(true);
-        for (int i = 0; i < renderers.Length; i++)
-        {
-            Material[] mats = renderers[i].sharedMaterials;
-            Material bark = barkFallbackMaterial != null ? barkFallbackMaterial : leafFallbackMaterial;
-            string rendererName = renderers[i].name ?? string.Empty;
-            if (mats == null || mats.Length == 0)
-            {
-                renderers[i].sharedMaterial = IsBarkHint(rendererName, string.Empty, 0, 1)
-                    ? bark
-                    : leafFallbackMaterial;
-                continue;
-            }
-
-            bool changed = false;
-            for (int j = 0; j < mats.Length; j++)
-            {
-                Material target = IsBarkHint(rendererName, mats[j] != null ? mats[j].name : string.Empty, j, mats.Length)
-                    ? bark
-                    : leafFallbackMaterial;
-                if (mats[j] != target)
-                {
-                    mats[j] = target;
-                    changed = true;
-                }
-            }
-
-            if (changed)
-            {
-                renderers[i].sharedMaterials = mats;
-            }
-        }
-    }
-
-    private static bool IsBarkHint(string rendererName, string materialName, int materialIndex, int materialCount)
-    {
-        string renderer = rendererName.ToLowerInvariant();
-        string material = materialName.ToLowerInvariant();
-
-        bool barkByName =
-            renderer.Contains("bark") || renderer.Contains("trunk") || renderer.Contains("stem") || renderer.Contains("wood") ||
-            material.Contains("bark") || material.Contains("trunk") || material.Contains("stem") || material.Contains("wood");
-        if (barkByName)
-        {
-            return true;
-        }
-
-        bool leafByName =
-            renderer.Contains("leaf") || renderer.Contains("leaves") || renderer.Contains("needle") || renderer.Contains("foliage") ||
-            material.Contains("leaf") || material.Contains("leaves") || material.Contains("needle") || material.Contains("foliage");
-        if (leafByName)
-        {
-            return false;
-        }
-
-        // Common tree import layout: slot 0 trunk, slot 1+ foliage.
-        if (materialCount > 1 && materialIndex == 0)
-        {
-            return true;
-        }
-
-        return false;
-    }
-
     private void EnsureSamplesUpToIndex(int targetIndex)
     {
         EnsureInitialized();
@@ -1311,6 +935,8 @@ public class RoadStreamGenerator : MonoBehaviour
                 rawTurnRateDegPerMeter,
                 Mathf.Clamp01(config.turnRateResponse)
             );
+            float maxSafeTurnRate = GetMaxSafeTurnRate();
+            turnRateDegPerMeter = Mathf.Clamp(turnRateDegPerMeter, -maxSafeTurnRate, maxSafeTurnRate);
             float yawDelta = turnRateDegPerMeter * sampleDistance;
             float prevYaw = Mathf.Atan2(prev.tangent.x, prev.tangent.z) * Mathf.Rad2Deg;
             float yaw = prevYaw + yawDelta;
@@ -1319,9 +945,7 @@ public class RoadStreamGenerator : MonoBehaviour
             float slopeAngleDeg = 0f;
             if (config.enableHills)
             {
-                float targetHeightNow = GetTargetElevation(s);
-                float targetHeightPrev = GetTargetElevation(prev.s);
-                float targetSlopeDeg = Mathf.Atan2(targetHeightNow - targetHeightPrev, sampleDistance) * Mathf.Rad2Deg;
+                float targetSlopeDeg = GetTargetSlopeDeg(prev, s, horizontalForward);
                 targetSlopeDeg = Mathf.Clamp(targetSlopeDeg, -Mathf.Abs(config.maxSlopeAngleDeg), Mathf.Abs(config.maxSlopeAngleDeg));
                 slopeAngleDeg = Mathf.Lerp(prev.slopeAngleDeg, targetSlopeDeg, Mathf.Clamp01(config.slopeResponse));
             }
@@ -1375,6 +999,7 @@ public class RoadStreamGenerator : MonoBehaviour
             };
 
             samples.Add(next);
+            AddSampleToBucket(samples.Count - 1);
         }
     }
 
@@ -1409,6 +1034,8 @@ public class RoadStreamGenerator : MonoBehaviour
             isDesignedPiece = false
         };
         samples.Add(first);
+        AddSampleToBucket(0);
+        heightField = new TerrainHeightField(config, first.position);
         ResetPieceState();
     }
 
@@ -1431,43 +1058,45 @@ public class RoadStreamGenerator : MonoBehaviour
         return pieceTurnRateDegPerMeter;
     }
 
-    private float GetTargetElevation(float s)
+    // Designed pieces with elevation keep their authored shape (followed as slope, so it is
+    // relative to wherever the piece starts). Everything else climbs/descends toward the terrain
+    // height ahead, plus short bumps, with any offset left by a designed piece fading out.
+    private float GetTargetSlopeDeg(RoadSample prev, float s, Vector3 horizontalForward)
     {
-        if (currentPieceType == PieceType.Designed &&
-            currentDesignedPiece != null &&
-            currentDesignedPiece.hasElevation &&
-            s >= pieceStartS && s < pieceEndS)
+        if (currentPieceType == PieceType.Designed && currentDesignedPiece != null && currentDesignedPiece.hasElevation)
         {
-            float pieceLen = pieceEndS - pieceStartS;
-            float t = pieceLen > 0f ? Mathf.Clamp01((s - pieceStartS) / pieceLen) : 0f;
-            return transform.position.y + currentDesignedPiece.elevationCurve.Evaluate(t);
+            designedElevationOffset = prev.position.y - heightField.GetHeight(prev.position.x, prev.position.z);
+            float heightNow = GetDesignedElevation(s);
+            float heightPrev = GetDesignedElevation(prev.s);
+            return Mathf.Atan2(heightNow - heightPrev, sampleDistance) * Mathf.Rad2Deg;
         }
 
-        if (!config.enableHills)
-        {
-            return transform.position.y;
-        }
+        designedElevationOffset *= Mathf.Exp(-sampleDistance / Mathf.Max(1f, config.designedElevationOffsetFade));
+        Vector3 ahead = prev.position + horizontalForward * sampleDistance;
+        float target = heightField.GetHeight(ahead.x, ahead.z) + designedElevationOffset + GetSmallBump(s);
+        return Mathf.Atan2(target - prev.position.y, Mathf.Max(1f, config.elevationCatchupDistance)) * Mathf.Rad2Deg;
+    }
 
+    private float GetDesignedElevation(float s)
+    {
+        float pieceLen = pieceEndS - pieceStartS;
+        float t = pieceLen > 0f ? Mathf.Clamp01((s - pieceStartS) / pieceLen) : 0f;
+        return currentDesignedPiece.elevationCurve.Evaluate(t);
+    }
+
+    private float GetSmallBump(float s)
+    {
         float smallWavelength = Mathf.Max(6f, config.smallBumpWavelength);
-        float largeWavelength = Mathf.Max(60f, config.largeHillWavelength);
-        float smallOmega = (Mathf.PI * 2f) / smallWavelength;
-        float largeOmega = (Mathf.PI * 2f) / largeWavelength;
         float bumpPatchLength = Mathf.Max(20f, config.smallBumpPatchLength);
-
         float seedOffset = config.seed * 0.137f;
-        float smallPhase = (s + seedOffset * 17f) * smallOmega;
-        float largePhaseA = (s + seedOffset * 53f) * largeOmega;
-        float largePhaseB = (s + seedOffset * 29f) * (largeOmega * 0.45f);
+        float smallPhase = (s + seedOffset * 17f) * (Mathf.PI * 2f) / smallWavelength;
 
         float bumpMaskNoise = Mathf.PerlinNoise((s + seedOffset * 97f) / bumpPatchLength, 0.37f);
         float bumpThreshold = 1f - Mathf.Clamp01(config.smallBumpOccurrence);
         float bumpMask = Mathf.InverseLerp(bumpThreshold, 1f, bumpMaskNoise);
         bumpMask = bumpMask * bumpMask * (3f - 2f * bumpMask);
 
-        float small = Mathf.Sin(smallPhase) * config.smallBumpAmplitude * bumpMask;
-        float large = (Mathf.Sin(largePhaseA) * 0.7f + Mathf.Sin(largePhaseB) * 0.3f) * config.largeHillAmplitude;
-
-        return transform.position.y + small + large;
+        return Mathf.Sin(smallPhase) * config.smallBumpAmplitude * bumpMask;
     }
 
     private void ResetPieceState()
@@ -1482,6 +1111,7 @@ public class RoadStreamGenerator : MonoBehaviour
         currentDesignedPieceMirrored = false;
         proceduralDistanceSinceLastDesigned = 0f;
         cumulativeYawDeg = 0f;
+        designedElevationOffset = 0f;
     }
 
     private void AdvancePiece()
@@ -1550,6 +1180,14 @@ public class RoadStreamGenerator : MonoBehaviour
                 float previousDirection = Mathf.Sign(previousCurveTurnRateDegPerMeter);
                 bool flipDirection = Hash01(pieceIndex, 4) < Mathf.Clamp01(config.oppositeCurveChance);
                 direction = flipDirection ? -previousDirection : previousDirection;
+            }
+
+            // Steer back toward the target bearing: the further off, the likelier the correcting direction.
+            float headingError = Mathf.DeltaAngle(config.targetBearing, cumulativeYawDeg);
+            float correctChance = Mathf.Clamp01(config.headingCorrectionStrength) * Mathf.Clamp01(Mathf.Abs(headingError) / 45f);
+            if (Mathf.Abs(headingError) > 0.5f && Hash01(pieceIndex, 6) < correctChance)
+            {
+                direction = -Mathf.Sign(headingError);
             }
 
             turnRate = direction * absRate;
@@ -1814,7 +1452,6 @@ public class RoadStreamGenerator : MonoBehaviour
             }
 
             chunks.Remove(key);
-            chunkTreePositions.Remove(key);
         }
 
         ListPool<int>.Release(toRemove);
@@ -1831,7 +1468,6 @@ public class RoadStreamGenerator : MonoBehaviour
         }
 
         chunks.Clear();
-        chunkTreePositions.Clear();
     }
 
     private void LogSmoothnessDiagnostics()
