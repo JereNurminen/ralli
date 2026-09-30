@@ -66,6 +66,8 @@ public class PoliceConfig : ScriptableObject
     [Range(0f, 1f)] public float beamVisibility = 0.25f;
 
     [Header("Visuals")]
+    [Tooltip("Headlight/tail light faces and flares on the van. Empty = none.")]
+    public VehicleLightsConfig vehicleLights;
     [Tooltip("Van body size (x = width, y = height, z = length). Roughly a VW Transporter.")]
     public Vector3 vanSize = new Vector3(1.9f, 1.95f, 4.9f);
     public Color vanColor = Color.white;

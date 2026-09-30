@@ -208,6 +208,11 @@ public class TrafficStreamManager : MonoBehaviour
         rb.mass = Mathf.Max(100f, config.vehicleMassKg);
         rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
 
+        if (config.vehicleLights != null)
+        {
+            go.AddComponent<VehicleLights>().Build(config.vehicleLights, config.vehicleBoxSize, true);
+        }
+
         return go.AddComponent<TrafficVehicle>();
     }
 

@@ -32,3 +32,4 @@ MonoBehaviour:
   ragdollReleaseDistance: 2
   vehicleBoxSize: {x: 1.78, y: 1.46, z: 4.05}
   vehicleMassKg: 1000
+  vehicleLights: {fileID: 11400000, guid: 9581ffce26a64315a8157c74ad9cfda2, type: 2}

@@ -78,6 +78,8 @@ public class TrafficConfig : ScriptableObject
     public bool showStateMarkers;
 
     [Header("Visuals")]
+    [Tooltip("Headlights, tail and brake lights on traffic cars. Empty = no lights.")]
+    public VehicleLightsConfig vehicleLights;
     [Tooltip("Simple traffic body size (x=width, y=height, z=length).")]
     public Vector3 vehicleBoxSize = new Vector3(1.78f, 1.46f, 4.05f);
     [Tooltip("Traffic vehicle rigidbody mass in kilograms.")]
