@@ -15,6 +15,7 @@ public class TrafficStreamManager : MonoBehaviour
     private readonly List<TrafficVehicle> oncomingLane = new List<TrafficVehicle>();
     private readonly HashSet<int> spawnedChunks = new HashSet<int>();
     private CarController player;
+    private Rigidbody playerBody;
     private MaterialPropertyBlock propertyBlock;
     private Material trafficMaterial;
 
@@ -26,6 +27,7 @@ public class TrafficStreamManager : MonoBehaviour
         }
 
         player = FindFirstObjectByType<CarController>();
+        playerBody = player != null ? player.GetComponent<Rigidbody>() : null;
         propertyBlock = new MaterialPropertyBlock();
 
         if (vehicleRoot == null)
@@ -67,11 +69,32 @@ public class TrafficStreamManager : MonoBehaviour
     private void FixedUpdate()
     {
         AssignLeaders();
+        TrafficVehicle.PlayerOnRoad playerOnRoad = GetPlayerOnRoad();
         float deltaTime = Time.fixedDeltaTime;
         for (int i = 0; i < vehicles.Count; i++)
         {
-            vehicles[i].Tick(deltaTime);
+            vehicles[i].Tick(deltaTime, playerOnRoad);
         }
+    }
+
+    private TrafficVehicle.PlayerOnRoad GetPlayerOnRoad()
+    {
+        var state = new TrafficVehicle.PlayerOnRoad();
+        if (player == null || playerBody == null || vehicles.Count == 0)
+        {
+            return state;
+        }
+
+        state.s = roadStream.GetEstimatedPlayerS();
+        if (!roadStream.TryGetRoadFrameAtS(state.s, out Vector3 position, out Vector3 forward, out Vector3 right, out _, out _))
+        {
+            return state;
+        }
+
+        state.valid = true;
+        state.lateral = Vector3.Dot(player.transform.position - position, right);
+        state.speedAlongRoad = Vector3.Dot(playerBody.linearVelocity, forward);
+        return state;
     }
 
     // Orders each lane's lane-following cars in travel order and points every car at the one ahead.
