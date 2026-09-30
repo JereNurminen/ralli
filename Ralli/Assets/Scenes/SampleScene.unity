@@ -1724,8 +1724,11 @@ MonoBehaviour:
   maxPitchShift: 0.2
   throttleBlendTime: 0.15
   fadeInTime: 0.8
-  overdrivePitchLift: 0.05
-  overdriveVolumeLift: 0.15
+  overdrivePitchBoost: 0.1
+  overdriveVolumeBoost: 0.3
+  engagePunchVolume: 0.5
+  engagePunchPitch: 0.08
+  engagePunchTime: 0.35
 --- !u!1001 &1993720300
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -1831,13 +1834,13 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1993720310}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.0391, y: -0.1677, z: 0.0067, w: 0.985}
-  m_LocalPosition: {x: -0.84, y: -0.12, z: 0.44}
-  m_LocalScale: {x: 0.16, y: 0.09, z: 1}
+  m_LocalRotation: {x: 0.011324292, y: -0.05581848, z: 0.00067682244, w: 0.99837655}
+  m_LocalPosition: {x: -0.7978, y: -0.0875, z: 0.402}
+  m_LocalScale: {x: 0.18, y: 0.09, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 1993720265}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_LocalEulerAnglesHint: {x: 1.3, y: -6.4, z: 0.005}
 --- !u!33 &1993720312
 MeshFilter:
   m_ObjectHideFlags: 0
@@ -1908,7 +1911,7 @@ MonoBehaviour:
   pitch: 2
   viewOffset: {x: -0.05, y: 0.02, z: 0}
   reflectFromEye: 0
-  resolutionHeight: 128
+  resolutionHeight: 64
   renderEveryNthFrame: 2
   nearClip: 0.1
   farClip: 400
@@ -1941,13 +1944,13 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1993720320}
   serializedVersion: 2
-  m_LocalRotation: {x: -0.0719, y: 0.1574, z: 0.0115, w: 0.9848}
-  m_LocalPosition: {x: 0, y: 0.16, z: 0.27}
-  m_LocalScale: {x: 0.26, y: 0.07, z: 1}
+  m_LocalRotation: {x: -0.072820306, y: -0.0013049792, z: -0.00008664414, w: 0.99734426}
+  m_LocalPosition: {x: -0.0043, y: 0.1102, z: 0.2052}
+  m_LocalScale: {x: 0.19, y: 0.04, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 1993720265}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_LocalEulerAnglesHint: {x: -8.352, y: -0.15, z: 0.001}
 --- !u!33 &1993720322
 MeshFilter:
   m_ObjectHideFlags: 0
@@ -2018,7 +2021,7 @@ MonoBehaviour:
   pitch: 3
   viewOffset: {x: 0, y: 0, z: 0}
   reflectFromEye: 0
-  resolutionHeight: 96
+  resolutionHeight: 64
   renderEveryNthFrame: 2
   nearClip: 0.1
   farClip: 400
