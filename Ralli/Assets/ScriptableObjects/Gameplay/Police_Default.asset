@@ -18,7 +18,28 @@ MonoBehaviour:
   accelerationMps2: 5
   homingDistance: 40
   lateralSpeed: 3
+  ramTriggerDistance: 12
+  ramClosingSpeedKph: 25
+  ramContactGap: 0.3
+  ramPushSpeed: 3
+  ramSideKick: 2.5
+  ramUpKick: 0.4
+  ramYawKick: 50
+  backoffTime: 1
+  backoffSpeedFactor: 0.5
+  backoffBrakeMps2: 12
   shovePadding: 0.3
+  beaconTurnsPerSecond: 0.5
+  beaconIntensity: 20
+  beaconRange: 35
+  beaconBeamAngle: 40
+  beaconFillAmount: 0.12
+  lightBarEmission: 16
+  strobeRed: {r: 1, g: 0.05, b: 0.05, a: 1}
+  strobeBlue: {r: 0.1, g: 0.25, b: 1, a: 1}
+  headlightIntensity: 12
+  headlightRange: 70
+  beamVisibility: 0.25
+  vehicleLights: {fileID: 11400000, guid: 9581ffce26a64315a8157c74ad9cfda2, type: 2}
   vanSize: {x: 1.9, y: 1.95, z: 4.9}
   vanColor: {r: 1, g: 1, b: 1, a: 1}
-  vehicleLights: {fileID: 11400000, guid: 9581ffce26a64315a8157c74ad9cfda2, type: 2}

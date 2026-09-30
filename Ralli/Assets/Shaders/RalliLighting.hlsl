@@ -12,8 +12,16 @@
 // #pragma multi_compile_fragment _ _SHADOWS_SOFT
 // #pragma multi_compile_fog
 
+// Stylized light reach for headlights/beacons: distance falloff is raised to _RalliLightFalloff
+// (set globally by LightingDirector; 1 = physical inverse-square, lower = reaches farther without
+// burning out up close), and diffuse is wrapped so road far ahead, lit at grazing angles, still
+// catches light.
+float _RalliLightFalloff;
+#define RALLI_LIGHT_WRAP 0.3
+
 half3 RalliAdditionalLightsDiffuse(float3 positionWS, half3 normalWS, float4 positionCS)
 {
+    float falloff = _RalliLightFalloff > 0.0 ? _RalliLightFalloff : 1.0;
     half3 lighting = 0;
 #if defined(_ADDITIONAL_LIGHTS)
     InputData inputData = (InputData)0;
@@ -22,7 +30,9 @@ half3 RalliAdditionalLightsDiffuse(float3 positionWS, half3 normalWS, float4 pos
     uint lightCount = GetAdditionalLightsCount();
     LIGHT_LOOP_BEGIN(lightCount)
         Light light = GetAdditionalLight(lightIndex, positionWS, half4(1, 1, 1, 1));
-        lighting += light.color * (light.distanceAttenuation * light.shadowAttenuation * saturate(dot(normalWS, light.direction)));
+        half attenuation = pow(max(light.distanceAttenuation, 1e-6), falloff);
+        half wrapped = saturate((dot(normalWS, light.direction) + RALLI_LIGHT_WRAP) / (1.0 + RALLI_LIGHT_WRAP));
+        lighting += light.color * (attenuation * light.shadowAttenuation * wrapped);
     LIGHT_LOOP_END
 #endif
     return lighting;
