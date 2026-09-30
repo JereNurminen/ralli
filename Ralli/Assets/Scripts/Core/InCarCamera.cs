@@ -84,6 +84,14 @@ public class InCarCamera : MonoBehaviour
     [Tooltip("How quickly the look direction catches up (s).")]
     [SerializeField] private float lookSmoothTime = 0.25f;
 
+    [Header("Manual Look")]
+    [Tooltip("How far the Camera input turns the view left/right at full deflection (degrees).")]
+    [SerializeField] private float maxManualLook = 100f;
+    [Tooltip("How quickly the view turns to and back from a manual look (s).")]
+    [SerializeField] private float manualLookSmoothTime = 0.12f;
+    [Tooltip("How much of the automatic look-into-slide stays active while looking manually (0 = none).")]
+    [Range(0f, 1f)] [SerializeField] private float autoLookWhileManual = 0.3f;
+
     private Camera cachedCamera;
     private CarController car;
     private CarInputReader carInput;
@@ -95,6 +103,8 @@ public class InCarCamera : MonoBehaviour
     private float shake;
     private float lookYaw;
     private float lookYawVelocity;
+    private float manualYaw;
+    private float manualYawVelocity;
     private float noiseSeed;
 
     private void Start()
@@ -185,7 +195,7 @@ public class InCarCamera : MonoBehaviour
         float headPitch = SafeDivide(headOffset.z, headSwayPerG.z) * headPitchPerG;
 
         Vector3 localEye = eyeOffset + headOffset + jitter;
-        Quaternion look = Quaternion.Euler(0f, lookYaw + jitterRotation.y, 0f)
+        Quaternion look = Quaternion.Euler(0f, lookYaw + manualYaw + jitterRotation.y, 0f)
                           * Quaternion.Euler(pitchDegrees + headPitch + jitterRotation.x, 0f, headRoll + jitterRotation.z);
 
         transform.SetPositionAndRotation(target.position + target.rotation * localEye, target.rotation * look);
@@ -222,12 +232,19 @@ public class InCarCamera : MonoBehaviour
             lookTarget = Mathf.Clamp(drift * slideFollow, -maxSlideLook, maxSlideLook) * speedWeight * spinWeight;
         }
 
+        float manualTarget = 0f;
         if (carInput != null)
         {
             lookTarget += carInput.Steer * steerLook;
+            manualTarget = Mathf.Clamp(carInput.CameraLook, -1f, 1f) * maxManualLook;
         }
 
+        // While looking around by hand, mostly drop the automatic look so it doesn't fight the player.
+        float manualAmount = Mathf.Clamp01(Mathf.Abs(manualYaw) / Mathf.Max(1f, maxManualLook * 0.25f));
+        lookTarget *= Mathf.Lerp(1f, autoLookWhileManual, manualAmount);
+
         lookYaw = Mathf.SmoothDamp(lookYaw, lookTarget, ref lookYawVelocity, lookSmoothTime, Mathf.Infinity, deltaTime);
+        manualYaw = Mathf.SmoothDamp(manualYaw, manualTarget, ref manualYawVelocity, manualLookSmoothTime, Mathf.Infinity, deltaTime);
     }
 
     // Hard hit: throw the head opposite to the push (a crash into something ahead slams it forward) and shake.
