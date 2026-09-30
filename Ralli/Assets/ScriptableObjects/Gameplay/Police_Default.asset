@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   startDelay: 10
   spawnDistanceBehind: 200
-  chaseSpeedKph: 140
+  chaseSpeedKph: 100
   accelerationMps2: 5
   homingDistance: 40
   lateralSpeed: 3

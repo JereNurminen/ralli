@@ -20,9 +20,9 @@ RenderSettings:
   m_FogDensity: 0.012
   m_LinearFogStart: 0
   m_LinearFogEnd: 300
-  m_AmbientSkyColor: {r: 0.035, g: 0.045, b: 0.08, a: 1}
-  m_AmbientEquatorColor: {r: 0.025, g: 0.03, b: 0.04, a: 1}
-  m_AmbientGroundColor: {r: 0.01, g: 0.01, b: 0.012, a: 1}
+  m_AmbientSkyColor: {r: 0.442, g: 0.494, b: 0.65, a: 1}
+  m_AmbientEquatorColor: {r: 0.546, g: 0.468, b: 0.468, a: 1}
+  m_AmbientGroundColor: {r: 0.13, g: 0.13, b: 0.13, a: 1}
   m_AmbientIntensity: 1
   m_AmbientMode: 1
   m_SubtractiveShadowColor: {r: 0.42, g: 0.478, b: 0.627, a: 1}
@@ -312,7 +312,7 @@ Camera:
   m_Enabled: 1
   serializedVersion: 2
   m_ClearFlags: 2
-  m_BackGroundColor: {r: 0.02, g: 0.025, b: 0.04, a: 1}
+  m_BackGroundColor: {r: 0.66, g: 0.6, b: 0.62, a: 1}
   m_projectionMatrixMode: 1
   m_GateFitMode: 2
   m_FOVAxisMode: 0
@@ -490,8 +490,8 @@ Light:
   m_Enabled: 1
   serializedVersion: 11
   m_Type: 1
-  m_Color: {r: 0.55, g: 0.65, b: 1, a: 1}
-  m_Intensity: 0.12
+  m_Color: {r: 1, g: 0.64, b: 0.42, a: 1}
+  m_Intensity: 1.1
   m_Range: 10
   m_SpotAngle: 30
   m_InnerSpotAngle: 21.80208
@@ -500,7 +500,7 @@ Light:
     m_Type: 2
     m_Resolution: -1
     m_CustomResolution: -1
-    m_Strength: 0.6
+    m_Strength: 0.8
     m_Bias: 0.05
     m_NormalBias: 0.4
     m_NearPlane: 0.2
@@ -553,7 +553,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 410087039}
   serializedVersion: 2
-  m_LocalRotation: {x: -0.23824657, y: 0.16849022, z: -0.04200933, w: -0.9555548}
+  m_LocalRotation: {x: -0.028038003, y: 0.76531535, z: -0.03341439, w: -0.64217585}
   m_LocalPosition: {x: 0, y: 3, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
@@ -2180,7 +2180,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1993720500}
-  m_Enabled: 0
+  m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 121d9f43ae2e4a46a7cfe3218716509d, type: 3}
   m_Name: 
@@ -2275,11 +2275,12 @@ MonoBehaviour:
   - {fileID: 11400000, guid: dc05c6aafc8b487c8f8640e52005ab36, type: 2}
   - {fileID: 11400000, guid: aca6a832ff0749719cee291cd4c3a6d4, type: 2}
   - {fileID: 11400000, guid: d6e7e0a61deb4c4dbfea31da314bf238, type: 2}
-  activePreset: 3
+  activePreset: 0
   sun: {fileID: 410087040}
   volume: {fileID: 832575518}
   northYaw: 0
   tonemapping: 0
+  lightFalloff: 0.6
 --- !u!1 &1993720800
 GameObject:
   m_ObjectHideFlags: 0
