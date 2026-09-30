@@ -276,6 +276,19 @@ public class RoadStreamGenerator : MonoBehaviour
         return true;
     }
 
+    // Distance along the road (s) of the nearest road point, if one is within maxDistance.
+    public bool TryGetNearestS(Vector3 position, float maxDistance, out float s)
+    {
+        s = 0f;
+        if (!TryFindNearestSample(position.x, position.z, maxDistance, out int sampleIndex, out _))
+        {
+            return false;
+        }
+
+        s = samples[sampleIndex].s;
+        return true;
+    }
+
     // Point on the road centerline `distance` meters ahead of the nearest road point, in the
     // direction the heading points along the road. False when no road is within maxRoadDistance.
     public bool TryGetRoadPointAhead(Vector3 position, Vector3 heading, float distance, float maxRoadDistance, out Vector3 point)

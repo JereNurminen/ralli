@@ -18,6 +18,8 @@ public class TrafficConfig : ScriptableObject
     public float sameLaneMinSpacing = 24f;
     [Tooltip("Extra chunks ahead of active range where traffic can spawn.")]
     public int spawnAheadChunks = 1;
+    [Tooltip("Never spawn traffic closer than this to the player along the road (m).")]
+    public float minSpawnDistanceFromPlayer = 80f;
 
     [Header("Speed")]
     [Tooltip("Base traffic speed in km/h.")]
@@ -28,6 +30,14 @@ public class TrafficConfig : ScriptableObject
     public float accelerationMps2 = 3.0f;
     [Tooltip("How quickly traffic slows down when braking (m/s²).")]
     public float brakingMps2 = 6.0f;
+
+    [Header("Following")]
+    [Tooltip("Gap kept to the car ahead when stopped (m, bumper to bumper).")]
+    public float followMinGap = 6f;
+    [Tooltip("Extra gap per m/s of own speed (s). 1.2 = about a 1.2 second following distance.")]
+    public float followTimeGap = 1.2f;
+    [Tooltip("How firmly a car adjusts speed to hold the gap (1/s).")]
+    public float followGapGain = 0.6f;
 
     [Header("Cornering")]
     [Tooltip("Enable corner-based speed reduction.")]
