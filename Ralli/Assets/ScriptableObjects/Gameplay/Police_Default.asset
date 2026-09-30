@@ -21,3 +21,4 @@ MonoBehaviour:
   shovePadding: 0.3
   vanSize: {x: 1.9, y: 1.95, z: 4.9}
   vanColor: {r: 1, g: 1, b: 1, a: 1}
+  vehicleLights: {fileID: 11400000, guid: 9581ffce26a64315a8157c74ad9cfda2, type: 2}

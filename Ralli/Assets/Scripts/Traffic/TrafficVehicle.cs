@@ -39,6 +39,7 @@ public class TrafficVehicle : MonoBehaviour
     private bool isReleased;
     private bool isBraking;
     private TrafficVehicle leader;
+    private VehicleLights lights;
     private MeshRenderer debugMarker;
     private MaterialPropertyBlock debugMarkerBlock;
 
@@ -78,6 +79,7 @@ public class TrafficVehicle : MonoBehaviour
         targetSpeedMps = Mathf.Max(1f, speedKph) * KphToMps;
         currentSpeedMps = targetSpeedMps;
         lateralOffset = GetLaneOffset();
+        lights = GetComponent<VehicleLights>();
 
         if (config.showStateMarkers)
         {
@@ -112,6 +114,10 @@ public class TrafficVehicle : MonoBehaviour
         float rate = Mathf.Max(0.1f, isBraking ? config.brakingMps2 : config.accelerationMps2);
         currentSpeedMps = Mathf.MoveTowards(currentSpeedMps, desiredSpeed, rate * deltaTime);
         currentS += currentSpeedMps * direction * deltaTime;
+        if (lights != null)
+        {
+            lights.SetBraking(isBraking);
+        }
 
         MoveToRoad(false);
         UpdateDebugMarker();

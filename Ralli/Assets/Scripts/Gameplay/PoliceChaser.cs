@@ -26,6 +26,7 @@ public class PoliceChaser : MonoBehaviour
     private float lateralOffset;
     private ChaseState state;
     private float backoffTimer;
+    private VehicleLights vanLights;
     private readonly Collider[] shoveBuffer = new Collider[16];
 
     // First contact with the player (the future lose-condition hook).
@@ -105,6 +106,12 @@ public class PoliceChaser : MonoBehaviour
         van.interpolation = RigidbodyInterpolation.Interpolate;
         van.collisionDetectionMode = CollisionDetectionMode.ContinuousSpeculative;
 
+        if (config.vehicleLights != null)
+        {
+            vanLights = root.AddComponent<VehicleLights>();
+            vanLights.Build(config.vehicleLights, config.vanSize, false);
+        }
+
         Lights = root.AddComponent<PoliceLights>();
         Lights.Initialize(config);
 
@@ -163,6 +170,11 @@ public class PoliceChaser : MonoBehaviour
                 }
 
                 break;
+        }
+
+        if (vanLights != null)
+        {
+            vanLights.SetBraking(targetSpeed < speedMps - 0.5f);
         }
 
         speedMps = Mathf.MoveTowards(speedMps, targetSpeed, acceleration * deltaTime);
