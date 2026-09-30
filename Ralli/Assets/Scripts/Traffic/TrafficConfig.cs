@@ -49,6 +49,10 @@ public class TrafficConfig : ScriptableObject
     [Tooltip("Distance to player (m) where a traffic car is released from spline-following and becomes dynamic.")]
     [Min(0.05f)] public float ragdollReleaseDistance = 0.5f;
 
+    [Header("Debug")]
+    [Tooltip("Show a ball above each car: green = following its lane, red = braking, black = released to physics.")]
+    public bool showStateMarkers;
+
     [Header("Visuals")]
     [Tooltip("Simple traffic body size (x=width, y=height, z=length).")]
     public Vector3 vehicleBoxSize = new Vector3(1.78f, 1.46f, 4.05f);

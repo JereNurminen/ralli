@@ -138,6 +138,7 @@ public class TrafficStreamManager : MonoBehaviour
 
         rb.isKinematic = true;
         rb.useGravity = false;
+        rb.interpolation = RigidbodyInterpolation.Interpolate;
         rb.mass = Mathf.Max(100f, config.vehicleMassKg);
         rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
 
