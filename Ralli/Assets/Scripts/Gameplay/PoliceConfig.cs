@@ -65,6 +65,17 @@ public class PoliceConfig : ScriptableObject
     [Tooltip("How visible the fake light beams are (beacons and headlights). 0 = off.")]
     [Range(0f, 1f)] public float beamVisibility = 0.25f;
 
+    [Header("Siren")]
+    [Tooltip("Looping siren on the van, positional (with doppler). Empty = silent.")]
+    public AudioClip siren;
+    [Range(0f, 1f)] public float sirenVolume = 0.8f;
+    [Tooltip("Distance (m) where the siren is at full volume, and where it stops fading.")]
+    public float sirenMinDistance = 12f;
+    public float sirenMaxDistance = 400f;
+    [Range(0f, 5f)] public float sirenDoppler = 1f;
+    [Tooltip("Fade-in when the van appears (s).")]
+    public float sirenFadeInTime = 2f;
+
     [Header("Visuals")]
     [Tooltip("Headlight/tail light faces and flares on the van. Empty = none.")]
     public VehicleLightsConfig vehicleLights;
