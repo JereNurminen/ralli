@@ -38,9 +38,14 @@ Shader "Ralli/StylizedFoliage"
             #pragma vertex vert
             #pragma fragment frag
             #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
+            #pragma multi_compile _ _ADDITIONAL_LIGHTS_VERTEX _ADDITIONAL_LIGHTS
+            #pragma multi_compile _ _FORWARD_PLUS
+            #pragma multi_compile_fragment _ _SHADOWS_SOFT
+            #pragma multi_compile_fog
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
+            #include "RalliLighting.hlsl"
 
             struct Attributes
             {
@@ -56,6 +61,7 @@ Shader "Ralli/StylizedFoliage"
                 float3 normalWS : TEXCOORD1;
                 float3 positionWS : TEXCOORD2;
                 float4 shadowCoord : TEXCOORD3;
+                float fogFactor : TEXCOORD4;
             };
 
             TEXTURE2D(_BaseMap);
@@ -100,6 +106,7 @@ Shader "Ralli/StylizedFoliage"
                 output.normalWS = TransformObjectToWorldNormal(input.normalOS);
                 output.uv = input.uv;
                 output.shadowCoord = TransformWorldToShadowCoord(output.positionWS);
+                output.fogFactor = ComputeFogFactor(output.positionHCS.z);
                 return output;
             }
 
@@ -125,9 +132,12 @@ Shader "Ralli/StylizedFoliage"
                 float band = lerp(bandLow, bandHigh, smoothstep(0.5 - _BandSoftness * 0.5, 0.5 + _BandSoftness * 0.5, f));
 
                 float shadowMul = lerp(1.0, mainLight.shadowAttenuation, _ShadowStrength);
-                float lightTerm = max(_MinLight, band * shadowMul);
+                float sunTerm = max(_MinLight, band * shadowMul);
 
-                return half4(canopyBase * lightTerm, 1.0);
+                // Banded sun on top of the scene ambient, plus headlights/beacons.
+                half3 lighting = SampleSH(normalWS) + mainLight.color * sunTerm
+                                 + RalliAdditionalLightsDiffuse(input.positionWS, normalWS, input.positionHCS);
+                return half4(MixFog(canopyBase * lighting, input.fogFactor), 1.0);
             }
             ENDHLSL
         }

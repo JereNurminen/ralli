@@ -88,6 +88,14 @@ public class MirrorView : MonoBehaviour
             return;
         }
 
+        // Match the main camera's sky (lighting presets may use a plain sky color instead of a skybox).
+        Camera main = Camera.main;
+        if (main != null)
+        {
+            mirrorCamera.clearFlags = main.clearFlags;
+            mirrorCamera.backgroundColor = main.backgroundColor;
+        }
+
         Transform car = transform.parent;
         Vector3 viewPosition = transform.position + car.TransformDirection(viewOffset);
         mirrorCamera.transform.SetPositionAndRotation(viewPosition, GetViewRotation(car));
