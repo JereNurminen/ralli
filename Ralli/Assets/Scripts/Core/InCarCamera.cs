@@ -5,8 +5,9 @@ using UnityEngine;
 //   braking, bumps, landings). Position only; the view never tilts from normal driving.
 // - Subtle road vibration that grows with speed (position only).
 // - A violent head slam on hard impacts, with its own spring, a nod/roll and shake.
-// - Looking into the slide: the view turns toward where the car is travelling, fading out when
-//   the car spins so it never swings wildly. Plus manual left/right look.
+// - Looking at the road: the view turns toward a point on the road ahead (into corners, and back
+//   toward the road when sliding), fading out in spins so it never swings wildly. Plus manual
+//   left/right look.
 // Everything is tuned for feel, not realism.
 [RequireComponent(typeof(Camera))]
 public class InCarCamera : MonoBehaviour
@@ -74,15 +75,21 @@ public class InCarCamera : MonoBehaviour
     [SerializeField] private float shakeRotation = 5f;
     [SerializeField] private float shakeFrequency = 22f;
 
-    [Header("Look Into Slide")]
-    [Tooltip("Share of the drift angle the view turns toward (0 = off, 1 = look straight along travel).")]
-    [Range(0f, 1f)] [SerializeField] private float slideFollow = 0.5f;
-    [Tooltip("Max turn toward the slide (degrees).")]
-    [SerializeField] private float maxSlideLook = 25f;
-    [Tooltip("Below this speed (km/h) the view doesn't follow the slide.")]
-    [SerializeField] private float slideLookMinSpeedKph = 15f;
-    [Tooltip("Drift angle (degrees) where following starts to fade out, and where it is fully gone. Keeps spins from swinging the view.")]
-    [SerializeField] private Vector2 spinFadeDegrees = new Vector2(35f, 75f);
+    [Header("Look At Road")]
+    [Tooltip("Share of the angle to the road point ahead the view turns toward (0 = off, 1 = look straight at it).")]
+    [Range(0f, 1f)] [SerializeField] private float roadLookFollow = 0.6f;
+    [Tooltip("Max turn toward the road (degrees).")]
+    [SerializeField] private float maxRoadLook = 20f;
+    [Tooltip("The road point is this many seconds ahead at the current speed...")]
+    [SerializeField] private float roadLookAheadTime = 1f;
+    [Tooltip("...kept between these distances (m).")]
+    [SerializeField] private Vector2 roadLookAheadRange = new Vector2(8f, 40f);
+    [Tooltip("Farther than this from the road (m), the view stops looking for it.")]
+    [SerializeField] private float maxRoadDistance = 30f;
+    [Tooltip("Below this speed (km/h) the view doesn't look at the road.")]
+    [SerializeField] private float roadLookMinSpeedKph = 10f;
+    [Tooltip("Angle to the road point (degrees) where following starts to fade out, and where it is fully gone. Keeps spins from swinging the view.")]
+    [SerializeField] private Vector2 roadLookFadeDegrees = new Vector2(45f, 90f);
     [Tooltip("Extra look into the turn at full steering (degrees). 0 = off.")]
     [SerializeField] private float steerLook = 0f;
     [Tooltip("How quickly the look direction catches up (s).")]
@@ -93,12 +100,13 @@ public class InCarCamera : MonoBehaviour
     [SerializeField] private float maxManualLook = 100f;
     [Tooltip("How quickly the view turns to and back from a manual look (s).")]
     [SerializeField] private float manualLookSmoothTime = 0.12f;
-    [Tooltip("How much of the automatic look-into-slide stays active while looking manually (0 = none).")]
+    [Tooltip("How much of the automatic look-at-road stays active while looking manually (0 = none).")]
     [Range(0f, 1f)] [SerializeField] private float autoLookWhileManual = 0.3f;
 
     private Camera cachedCamera;
     private CarController car;
     private CarInputReader carInput;
+    private RoadStreamGenerator road;
     private Rigidbody carBody;
     private Vector3 lastVelocity;
     private Vector3 smoothedAcceleration;
@@ -127,6 +135,7 @@ public class InCarCamera : MonoBehaviour
         }
 
         SetTarget(target);
+        road = FindFirstObjectByType<RoadStreamGenerator>();
         noiseSeed = Random.Range(0f, 100f);
     }
 
@@ -223,17 +232,10 @@ public class InCarCamera : MonoBehaviour
         );
     }
 
-    // Turn toward the direction of travel, fading out at low speed and in spins.
+    // Turn toward a point on the road ahead, fading out at low speed, off the road and in spins.
     private void UpdateLook(float deltaTime)
     {
-        float lookTarget = 0f;
-        if (car != null)
-        {
-            float drift = car.DriftAngle;
-            float speedWeight = Mathf.InverseLerp(slideLookMinSpeedKph, slideLookMinSpeedKph * 2f, car.SpeedMps * 3.6f);
-            float spinWeight = 1f - Mathf.InverseLerp(spinFadeDegrees.x, spinFadeDegrees.y, Mathf.Abs(drift));
-            lookTarget = Mathf.Clamp(drift * slideFollow, -maxSlideLook, maxSlideLook) * speedWeight * spinWeight;
-        }
+        float lookTarget = GetRoadLookYaw();
 
         float manualTarget = 0f;
         if (carInput != null)
@@ -248,6 +250,28 @@ public class InCarCamera : MonoBehaviour
 
         lookYaw = Mathf.SmoothDamp(lookYaw, lookTarget, ref lookYawVelocity, lookSmoothTime, Mathf.Infinity, deltaTime);
         manualYaw = Mathf.SmoothDamp(manualYaw, manualTarget, ref manualYawVelocity, manualLookSmoothTime, Mathf.Infinity, deltaTime);
+    }
+
+    private float GetRoadLookYaw()
+    {
+        if (car == null || road == null)
+        {
+            return 0f;
+        }
+
+        float speed = car.SpeedMps;
+        float speedWeight = Mathf.InverseLerp(roadLookMinSpeedKph, roadLookMinSpeedKph * 2f, speed * 3.6f);
+        float lookAhead = Mathf.Clamp(speed * roadLookAheadTime, roadLookAheadRange.x, roadLookAheadRange.y);
+        if (speedWeight <= 0f || !road.TryGetRoadPointAhead(target.position, target.forward, lookAhead, maxRoadDistance, out Vector3 roadPoint))
+        {
+            return 0f;
+        }
+
+        Vector3 forward = Vector3.ProjectOnPlane(target.forward, target.up);
+        Vector3 toRoad = Vector3.ProjectOnPlane(roadPoint - transform.position, target.up);
+        float angle = Vector3.SignedAngle(forward, toRoad, target.up);
+        float fadeWeight = 1f - Mathf.InverseLerp(roadLookFadeDegrees.x, roadLookFadeDegrees.y, Mathf.Abs(angle));
+        return Mathf.Clamp(angle * roadLookFollow, -maxRoadLook, maxRoadLook) * speedWeight * fadeWeight;
     }
 
     // Hard hit: throw the head opposite to the push (a crash into something ahead slams it forward) and shake.
