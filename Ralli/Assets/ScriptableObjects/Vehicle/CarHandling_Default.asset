@@ -24,6 +24,7 @@ MonoBehaviour:
   overdriveRampDownSpeed: 3
   rollingDeceleration: 0.5
   brakeDeceleration: 10
+  handbrakeDeceleration: 6
   reverseAcceleration: 3
   reverseMaxSpeedKph: 25
   uphillGravityScale: 0.3
@@ -32,10 +33,18 @@ MonoBehaviour:
   exitBoostDuration: 1
   exitBoostAcceleration: 6
   exitBoostGrip: 0.8
-  heatRiseRate: 0.2
+  gearSpanKph: 45
+  gearCount: 6
+  idleRpm01: 0.12
+  throttleRpmBump: 0.08
+  overdriveRpmBump: 0.1129
+  rpmRiseRate: 3
+  rpmFallRate: 1.5
+  airborneRpmRiseRate: 5
+  heatRiseRate: 0.15
   heatFallRate: 0.1
-  heatTaperStart: 0.933
-  powerAtMaxHeat: 0.19
+  heatTaperStart: 0.9
+  powerAtMaxHeat: 0.5
   gripStiffness: 12
   frontGripG: 1.15
   rearGripG: 1.3
@@ -44,6 +53,14 @@ MonoBehaviour:
   handbrakeRearGrip: 0.3
   frontGripResponseTime: 0.4
   rearGripResponseTime: 0.3
+  overdriveSteerExponent: 1
+  driftAngleLimit: 35
+  spinCatchRange: 20
+  spinYawDamping: 6
+  powerOversteer: 0.8
+  slidePowerFactor: 0.5
+  driftMomentum: 5
+  driftMomentumAngles: {x: 8, y: 45}
   rideHeight: 1
   groundProbeExtra: 0.6
   supportStiffness: 160
