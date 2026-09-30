@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8cd6be16483d2497d843fc0a519aa643, type: 3}
   m_Name: RoadGeneration_Default
   m_EditorClassIdentifier: 
-  seed: 67
+  seed: 0
   chunkLength: 140
   minChunkLength: 100
   maxChunkLength: 180
@@ -23,22 +23,21 @@ MonoBehaviour:
   roadThickness: 0.35
   shoulderWidth: 0.825
   shoulderDrop: 0.05
-  ditchWidth: 1
-  ditchDepth: 0.3
+  ditchWidth: 3
+  ditchDepth: 0.2
   ditchBottomFlatWidth: 0.75
-  collidableForestWidth: 15
-  dropSkirtDepth: 3
   forestFloorYOffset: -0.5
+  corridorApronDepth: 1.5
+  corridorRadiusMargin: 1.5
   spawnForestTrees: 1
-  forestTreesPerChunk: 100
+  treeBandWidth: 30
+  treeCellSize: 5
+  treeDensity: 0.331
   birchRatio: 0.2
-  treeTrunkSafeRadius: 1.88
-  treeSpawnAttemptsMultiplier: 8
   treeDitchClearance: 1.5
   treeColliderWidth: 0.6
   treeColliderHeight: 8
   treeModelRotationOffsetEuler: {x: -90, y: 0, z: 0}
-  innerProfileCompressionRadiusFactor: 0.8
   maxTurnRateDegPerMeter: 1
   turnRateResponse: 0.2
   enableHills: 1
@@ -46,10 +45,24 @@ MonoBehaviour:
   smallBumpWavelength: 42
   smallBumpOccurrence: 0.22
   smallBumpPatchLength: 160
-  largeHillAmplitude: 9.97
-  largeHillWavelength: 360
+  elevationCatchupDistance: 30
+  designedElevationOffsetFade: 400
   maxSlopeAngleDeg: 8
   slopeResponse: 0.12
+  terrainTileSize: 48
+  terrainTileResolution: 24
+  terrainRadius: 720
+  terrainWallMargin: 2
+  terrainWallHeight: 25
+  terrainWallSink: 3
+  terrainBearingBias: 60
+  terrainTilesPerFrame: 4
+  terrainNoiseScale: 260
+  terrainNoiseAmplitude: 16
+  terrainNoiseOctaves: 3
+  roadBlendWidth: 25
+  roadFlatRing: 1.5
+  corridorTuckDepth: 1.2
   curvePieceProbability: 0.72
   minStraightLength: 28
   maxStraightLength: 90
@@ -61,7 +74,7 @@ MonoBehaviour:
   designedPiecePool: {fileID: 11400000, guid: 0c56a6ebf90934f2fb8cffae3bdb53a3, type: 2}
   minProceduralBetweenDesigned: 200
   maxProceduralBetweenDesigned: 600
-  headingCorrectionStrength: 1
+  headingCorrectionStrength: 0.816
   targetBearing: 0
   bankFromCurvature: 6.75
   maxBankAngle: 5.35

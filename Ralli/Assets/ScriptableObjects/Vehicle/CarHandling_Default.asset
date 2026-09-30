@@ -21,7 +21,7 @@ MonoBehaviour:
   maxSpeedKph: 210
   overdrivePowerMultiplier: 1.6
   overdriveRampUpSpeed: 5
-  overdriveRampDownSpeed: 2
+  overdriveRampDownSpeed: 3
   rollingDeceleration: 0.5
   brakeDeceleration: 10
   reverseAcceleration: 3
