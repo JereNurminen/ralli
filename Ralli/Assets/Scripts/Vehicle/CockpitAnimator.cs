@@ -33,6 +33,8 @@ public class CockpitAnimator : MonoBehaviour
     [Tooltip("Steering wheel degrees per front-wheel degree. Negative flips direction.")]
     [SerializeField] private float steeringRatio = 4f;
     [SerializeField] private float maxSteeringWheelDegrees = 180f;
+    [Tooltip("How long the wheel takes to catch up with the steering (s). Visual only.")]
+    [SerializeField] private float steeringWheelSmoothTime = 0.08f;
 
     [Header("Speedometer")]
     [SerializeField] private Needle speedometer = new Needle { partName = "Gauge_Speed_Needle", sweepDegrees = 240f };
@@ -52,6 +54,8 @@ public class CockpitAnimator : MonoBehaviour
     private CarController car;
     private Transform steeringWheel;
     private Quaternion steeringWheelRest;
+    private float wheelDegrees;
+    private float wheelVelocity;
     private Transform lodRoot;
 
     public Transform SteeringWheel => steeringWheel;
@@ -97,7 +101,8 @@ public class CockpitAnimator : MonoBehaviour
 
         if (steeringWheel != null)
         {
-            float wheelDegrees = Mathf.Clamp(car.SteerAngleDegrees * steeringRatio, -maxSteeringWheelDegrees, maxSteeringWheelDegrees);
+            float targetDegrees = Mathf.Clamp(car.SteerAngleDegrees * steeringRatio, -maxSteeringWheelDegrees, maxSteeringWheelDegrees);
+            wheelDegrees = Mathf.SmoothDamp(wheelDegrees, targetDegrees, ref wheelVelocity, steeringWheelSmoothTime);
             steeringWheel.localRotation = steeringWheelRest * Quaternion.AngleAxis(wheelDegrees, rotationAxis);
         }
 

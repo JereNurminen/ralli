@@ -32,6 +32,9 @@ public class CarController : MonoBehaviour
     private float overdriveFactor;
     private float heat01;
     private float engineRpm01;
+    private bool engineRunning;
+    private float ignitionTimer;
+    private bool driveEnabled;
     private float drivePush;
     private float slideEntrySpeed;
     private float overdriveHeldTime;
@@ -47,6 +50,10 @@ public class CarController : MonoBehaviour
     public float SteerAngleDegrees => steerAngle;
     public float OverdriveFactor => overdriveFactor;
     public float Heat01 => heat01;
+    public bool EngineRunning => engineRunning;
+    // Fired once, when the first throttle press turns the engine on.
+    public event System.Action EngineStarted;
+
     // Fake engine RPM, 0 = off, 1 = limiter. Drives engine sound and the rev counter.
     public float EngineRpm01 => engineRpm01;
     public float ExitBoost01 => handling == null || handling.exitBoostDuration <= 0f ? 0f : exitBoostTimer / handling.exitBoostDuration;
@@ -69,6 +76,8 @@ public class CarController : MonoBehaviour
         rb = GetComponent<Rigidbody>();
         input = GetComponent<CarInputReader>();
         rb.centerOfMass = new Vector3(0f, handling.centerOfMassYOffset, 0f);
+        engineRunning = !handling.startWithEngineOff;
+        ignitionTimer = engineRunning ? handling.ignitionDriveDelay : 0f;
     }
 
     private void FixedUpdate()
@@ -79,9 +88,10 @@ public class CarController : MonoBehaviour
         }
 
         float deltaTime = Time.fixedDeltaTime;
+        UpdateIgnition(deltaTime);
         // Overdrive only works on top of held throttle; alone it does nothing.
-        bool overdrive = input.Overdrive && input.Throttle > 0.5f;
-        float throttle = input.Throttle;
+        bool overdrive = driveEnabled && input.Overdrive && input.Throttle > 0.5f;
+        float throttle = driveEnabled ? input.Throttle : 0f;
         float forwardSpeed = Vector3.Dot(rb.linearVelocity, transform.forward);
 
         ProbeGround();
@@ -256,11 +266,33 @@ public class CarController : MonoBehaviour
 
     // No real drivetrain: on the ground RPM follows speed through fake gears; in the air the
     // wheels spin free, so throttle sends it to the limiter until the car lands again.
+    // Switched off until the first throttle press; drive engages a moment after ignition.
+    private void UpdateIgnition(float deltaTime)
+    {
+        if (!engineRunning && input.Throttle > 0.5f)
+        {
+            engineRunning = true;
+            ignitionTimer = 0f;
+            EngineStarted?.Invoke();
+        }
+
+        if (engineRunning)
+        {
+            ignitionTimer += deltaTime;
+        }
+
+        driveEnabled = engineRunning && ignitionTimer >= handling.ignitionDriveDelay;
+    }
+
     private void UpdateEngineRpm(float throttle, float forwardSpeed, float deltaTime)
     {
         float target;
         float riseRate = handling.rpmRiseRate;
-        if (grounded)
+        if (!engineRunning)
+        {
+            target = 0f;
+        }
+        else if (grounded)
         {
             target = GetGearRpm01(Mathf.Abs(forwardSpeed) * MpsToKph)
                      + throttle * handling.throttleRpmBump
@@ -335,7 +367,11 @@ public class CarController : MonoBehaviour
     {
         float speed = Mathf.Abs(forwardSpeed);
         float push;
-        if (inReverse)
+        if (!driveEnabled)
+        {
+            push = 0f;
+        }
+        else if (inReverse)
         {
             push = speed < handling.reverseMaxSpeedKph / MpsToKph ? -handling.reverseAcceleration * input.Brake : 0f;
         }

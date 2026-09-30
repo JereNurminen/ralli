@@ -17,6 +17,9 @@ public class MusicDirector : MonoBehaviour
     [SerializeField] private MusicTrack[] tracks;
     [Tooltip("Start a stage with a random track when the scene starts.")]
     [SerializeField] private bool playOnStart = true;
+    [Tooltip("Hold the music until the player turns the engine on, then start it after the delay below.")]
+    [SerializeField] private bool waitForEngineStart = true;
+    [SerializeField] private float musicStartDelay = 1f;
 
     [Header("Mixer")]
     [Tooltip("Music group of the mixer. Without it, volume falls back to the AudioSources and there is no bass EQ.")]
@@ -107,10 +110,31 @@ public class MusicDirector : MonoBehaviour
 
         StartCoroutine(EvaluateMixLoop());
 
-        if (playOnStart && tracks != null && tracks.Length > 0)
+        if (!playOnStart || tracks == null || tracks.Length == 0)
+        {
+            return;
+        }
+
+        if (waitForEngineStart && car != null && !car.EngineRunning)
+        {
+            car.EngineStarted += OnEngineStarted;
+        }
+        else
         {
             StartStage(tracks[Random.Range(0, tracks.Length)]);
         }
+    }
+
+    private void OnEngineStarted()
+    {
+        car.EngineStarted -= OnEngineStarted;
+        StartCoroutine(StartRandomTrackAfter(musicStartDelay));
+    }
+
+    private IEnumerator StartRandomTrackAfter(float delay)
+    {
+        yield return new WaitForSeconds(delay);
+        StartStage(tracks[Random.Range(0, tracks.Length)]);
     }
 
     private void OnDestroy()
@@ -118,6 +142,7 @@ public class MusicDirector : MonoBehaviour
         if (car != null)
         {
             car.Impact -= OnCarImpact;
+            car.EngineStarted -= OnEngineStarted;
         }
     }
 

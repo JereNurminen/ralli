@@ -60,6 +60,12 @@ public class PoliceChaser : MonoBehaviour
         float deltaTime = Time.fixedDeltaTime;
         if (van == null)
         {
+            // The delay counts from when the player turns the engine on.
+            if (!player.EngineRunning)
+            {
+                return;
+            }
+
             startTimer += deltaTime;
             if (startTimer >= config.startDelay)
             {
