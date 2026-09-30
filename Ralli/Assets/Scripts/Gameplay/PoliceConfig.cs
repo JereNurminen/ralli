@@ -45,6 +45,21 @@ public class PoliceConfig : ScriptableObject
     [Tooltip("Traffic cars within this distance of the van (m) are knocked loose so the van shoves them aside.")]
     public float shovePadding = 0.3f;
 
+    [Header("Lights")]
+    [Tooltip("Strobe cycles per second (each cycle: red double-flash, then blue double-flash).")]
+    public float strobeFrequency = 1.8f;
+    [Tooltip("Brightness of the red/blue strobe lights that light up the surroundings.")]
+    public float strobeLightIntensity = 60f;
+    [Tooltip("Reach of the strobe lights (m).")]
+    public float strobeLightRange = 30f;
+    [Tooltip("Glow of the roof light bar (HDR multiplier; bloom makes it flare).")]
+    public float lightBarEmission = 16f;
+    [ColorUsage(false)] public Color strobeRed = new Color(1f, 0.05f, 0.05f);
+    [ColorUsage(false)] public Color strobeBlue = new Color(0.1f, 0.25f, 1f);
+    [Tooltip("Van headlight brightness and reach (m).")]
+    public float headlightIntensity = 40f;
+    public float headlightRange = 70f;
+
     [Header("Visuals")]
     [Tooltip("Van body size (x = width, y = height, z = length). Roughly a VW Transporter.")]
     public Vector3 vanSize = new Vector3(1.9f, 1.95f, 4.9f);
