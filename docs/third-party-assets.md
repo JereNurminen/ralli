@@ -10,7 +10,7 @@ hold the GUIDs that scenes and prefabs reference; re-importing without them brea
 
 | Asset | Author | Source (URL) | Licence | Credit required? (exact text) | Path in project | Status | Added |
 |-------|--------|--------------|---------|-------------------------------|-----------------|--------|-------|
-|       |        |              |         |                               |                 |        |       |
+| WRAD ARMS (first-person arms: `arms.fbx`, pale + dark albedo) | wriks (dark skin texture: Royalty3D) | https://wriks.itch.io/wrad-arms | CC0 1.0 | Not required (CC0). Author requests: "'WRAD ARMS' by wriks: https://wriks.motorcycles" | `Assets/ThirdParty/WRAD_ARMS/` | Evaluating | 2026-09-29 |
 
 **Status values:** Evaluating · In use · Removed
 
