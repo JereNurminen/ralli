@@ -6,6 +6,7 @@ using UnityEngine;
 // current multiplier, banked into the score immediately. The multiplier is
 //   1 + speed bonus (current speed) + trick bonus (grows per trick) + police bonus (van distance).
 // Hits only cost multiplier: scrapes and big hits shave the trick bonus, major collisions zero it.
+// The score carries over from earlier stages of the run; disabling the component stops scoring.
 public class ScoreSystem : MonoBehaviour
 {
     private const float PlayerHalfWidth = 0.8f;
@@ -40,6 +41,7 @@ public class ScoreSystem : MonoBehaviour
 
     private void Start()
     {
+        Score = RunState.Score;
         player = FindFirstObjectByType<CarController>();
         playerBody = player != null ? player.GetComponent<Rigidbody>() : null;
         traffic = FindFirstObjectByType<TrafficStreamManager>();
@@ -278,7 +280,7 @@ public class ScoreSystem : MonoBehaviour
 
     private void OnPlayerImpact(float speedChange, Vector3 pushDirection)
     {
-        if (config == null || TrickBonus <= 0f)
+        if (!enabled || config == null || TrickBonus <= 0f)
         {
             return;
         }

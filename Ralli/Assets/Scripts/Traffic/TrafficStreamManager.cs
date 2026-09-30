@@ -23,8 +23,16 @@ public class TrafficStreamManager : MonoBehaviour
     private readonly List<TrafficVehicle> oncomingLane = new List<TrafficVehicle>();
     private readonly HashSet<int> spawnedChunks = new HashSet<int>();
     private CarController player;
+    // Random per scene load: traffic is not tied to the road seed.
+    private int trafficSeed;
 
     public IReadOnlyList<TrafficVehicle> Vehicles => vehicles;
+
+    // Stage setup: a runtime config copy, set before traffic spawns.
+    public void UseConfig(TrafficConfig stageConfig)
+    {
+        config = stageConfig;
+    }
 
     // A pooled real spot light, lent to one traffic car at a time and faded in/out when it moves.
     private class HeadlightSlot
@@ -48,6 +56,7 @@ public class TrafficStreamManager : MonoBehaviour
         player = FindFirstObjectByType<CarController>();
         playerBody = player != null ? player.GetComponent<Rigidbody>() : null;
         propertyBlock = new MaterialPropertyBlock();
+        trafficSeed = Random.Range(1, int.MaxValue);
 
         if (vehicleRoot == null)
         {
@@ -274,6 +283,18 @@ public class TrafficStreamManager : MonoBehaviour
             return;
         }
 
+        // Only on the stage road between the stations.
+        if (roadStream.TryGetTrafficRange(out float minS, out float maxS))
+        {
+            startS = Mathf.Max(startS, minS);
+            endS = Mathf.Min(endS, maxS);
+            if (endS - startS < 10f)
+            {
+                spawnedChunks.Add(chunkIndex);
+                return;
+            }
+        }
+
         float chunkLength = Mathf.Max(1f, endS - startS);
         float playerS = roadStream.GetEstimatedPlayerS();
         float densityT = Mathf.Clamp01(playerS / Mathf.Max(1f, config.densityRampDistance));
@@ -287,7 +308,7 @@ public class TrafficStreamManager : MonoBehaviour
             return;
         }
 
-        System.Random rng = new System.Random((roadStream.GetSeed() * 83492791) ^ (chunkIndex * 19349663));
+        System.Random rng = new System.Random((trafficSeed * 83492791) ^ (chunkIndex * 19349663));
         var forwardSpawns = new List<float>(count);
         var oncomingSpawns = new List<float>(count);
         foreach (TrafficVehicle existing in vehicles)
@@ -391,14 +412,18 @@ public class TrafficStreamManager : MonoBehaviour
         trafficMaterial.SetFloat("_Metallic", 0.0f);
     }
 
+    // Cars leave when their chunk is out of range, or when they drive off the stage road (into a
+    // station stretch).
     private void CullOutside(int minChunk, int maxChunk)
     {
+        bool hasRange = roadStream.TryGetTrafficRange(out float minS, out float maxS);
         for (int i = vehicles.Count - 1; i >= 0; i--)
         {
             TrafficVehicle vehicle = vehicles[i];
             vehicle.RefreshReleasedRoadPosition(ReleasedRoadSearchDistance);
             int chunk = roadStream.GetChunkIndexForS(vehicle.CurrentS);
-            if (chunk < minChunk || chunk > maxChunk)
+            bool offStageRoad = hasRange && !vehicle.IsReleased && (vehicle.CurrentS < minS || vehicle.CurrentS > maxS);
+            if (chunk < minChunk || chunk > maxChunk || offStageRoad)
             {
                 Destroy(vehicle.gameObject);
                 vehicles.RemoveAt(i);
