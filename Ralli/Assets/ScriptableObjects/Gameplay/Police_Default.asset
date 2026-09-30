@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: Police_Default
   m_EditorClassIdentifier: 
   startDelay: 10
-  spawnDistanceBehind: 200
+  spawnDistanceBehind: 100
   chaseSpeedKph: 100
   accelerationMps2: 5
   homingDistance: 40
@@ -28,6 +28,7 @@ MonoBehaviour:
   backoffTime: 1
   backoffSpeedFactor: 0.5
   backoffBrakeMps2: 12
+  passThroughVanishDistance: 60
   shovePadding: 0.3
   beaconTurnsPerSecond: 0.5
   beaconIntensity: 20
@@ -41,11 +42,11 @@ MonoBehaviour:
   headlightRange: 70
   beamVisibility: 0.25
   siren: {fileID: 8300000, guid: 065e30e9a3374f9fbc2bf19da4e3417d, type: 3}
-  sirenVolume: 0.8
+  sirenVolume: 1
   sirenMinDistance: 12
   sirenMaxDistance: 400
   sirenDoppler: 1
   sirenFadeInTime: 2
   vehicleLights: {fileID: 11400000, guid: 9581ffce26a64315a8157c74ad9cfda2, type: 2}
   vanSize: {x: 1.9, y: 1.95, z: 4.9}
-  vanColor: {r: 1, g: 1, b: 1, a: 1}
+  vanColor: {r: 0, g: 0, b: 0, a: 1}
