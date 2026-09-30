@@ -1,8 +1,9 @@
 using UnityEngine;
 
 // A traffic car. Follows its lane along the road (kinematic), keeping a gap to the car ahead in
-// its lane, and panic-brakes and swerves when the player comes at it in its lane. Once it touches
-// the player or a wreck it is released to regular physics for the rest of its life.
+// its lane. It is released to regular physics for the rest of its life when it touches the player
+// or a wreck, or when it panics: the player about to hit it head-on in its lane makes it flinch
+// toward the road edge and skid to a stop (it is despawned soon after the player passes anyway).
 public class TrafficVehicle : MonoBehaviour
 {
     // The player in road coordinates, computed once per physics step by the manager.
@@ -30,11 +31,7 @@ public class TrafficVehicle : MonoBehaviour
     private Rigidbody rb;
     // +1 drives along the road (the player's direction, right lane), -1 is oncoming (left lane).
     private float direction;
-    private float laneOffset;
     private float lateralOffset;
-    private float lateralVelocity;
-    private float dodgeOffset;
-    private float panicTimer;
     private float targetSpeedMps;
     private float currentSpeedMps;
     private float currentS;
@@ -80,8 +77,7 @@ public class TrafficVehicle : MonoBehaviour
         direction = travelDirection >= 0f ? 1f : -1f;
         targetSpeedMps = Mathf.Max(1f, speedKph) * KphToMps;
         currentSpeedMps = targetSpeedMps;
-        laneOffset = GetLaneOffset();
-        lateralOffset = laneOffset;
+        lateralOffset = GetLaneOffset();
 
         if (config.showStateMarkers)
         {
@@ -105,63 +101,46 @@ public class TrafficVehicle : MonoBehaviour
             return;
         }
 
-        UpdatePanic(playerOnRoad, deltaTime);
-        bool panicking = panicTimer > 0f;
+        if (IsAboutToBeHit(playerOnRoad))
+        {
+            Panic();
+            return;
+        }
 
-        float desiredSpeed = panicking ? 0f : Mathf.Min(targetSpeedMps * GetCornerSpeedFactor(), GetFollowSpeedLimit());
+        float desiredSpeed = Mathf.Min(targetSpeedMps * GetCornerSpeedFactor(), GetFollowSpeedLimit());
         isBraking = currentSpeedMps > desiredSpeed + 0.1f;
-        // Cars behind a panicking car brake just as hard, so the queue doesn't pile up.
-        bool emergency = panicking || (leader != null && leader.panicTimer > 0f);
-        float brakeRate = emergency ? config.panicBrakingMps2 : config.brakingMps2;
-        float rate = Mathf.Max(0.1f, isBraking ? brakeRate : config.accelerationMps2);
+        float rate = Mathf.Max(0.1f, isBraking ? config.brakingMps2 : config.accelerationMps2);
         currentSpeedMps = Mathf.MoveTowards(currentSpeedMps, desiredSpeed, rate * deltaTime);
         currentS += currentSpeedMps * direction * deltaTime;
-
-        float lateralTarget = panicking ? dodgeOffset : laneOffset;
-        float lateralSpeed = panicking ? config.dodgeLateralSpeed : config.returnLateralSpeed;
-        float previousOffset = lateralOffset;
-        lateralOffset = Mathf.MoveTowards(lateralOffset, lateralTarget, Mathf.Max(0.1f, lateralSpeed) * deltaTime);
-        lateralVelocity = (lateralOffset - previousOffset) / deltaTime;
 
         MoveToRoad(false);
         UpdateDebugMarker();
     }
 
-    // Panic when the player is ahead in this car's travel direction, inside its lane, closing in,
-    // and a collision is near. The swerve heads for the car's own road edge; only if the player is
-    // hugging that edge does it go the other way, and even then never across the centerline.
-    private void UpdatePanic(in PlayerOnRoad playerOnRoad, float deltaTime)
+    // The player is ahead in this car's travel direction, inside its lane, closing in, and a
+    // head-on collision is about a second away. Only the player triggers this.
+    private bool IsAboutToBeHit(in PlayerOnRoad playerOnRoad)
     {
-        panicTimer = Mathf.Max(0f, panicTimer - deltaTime);
         if (!playerOnRoad.valid)
         {
-            return;
+            return false;
         }
 
         float distanceAhead = (playerOnRoad.s - currentS) * direction - transform.localScale.z;
         float closingSpeed = currentSpeedMps - playerOnRoad.speedAlongRoad * direction;
-        float laneHalfWidth = Mathf.Abs(laneOffset) + config.panicLaneMargin;
-        bool inLane = Mathf.Abs(playerOnRoad.lateral - lateralOffset) < laneHalfWidth;
-        if (distanceAhead < 0f || !inLane || closingSpeed < config.panicMinClosingSpeed
-            || distanceAhead / closingSpeed > config.panicTimeToCollision)
-        {
-            return;
-        }
+        bool inLane = Mathf.Abs(playerOnRoad.lateral - lateralOffset) < Mathf.Abs(lateralOffset) + config.panicLaneMargin;
+        return distanceAhead >= 0f && inLane && closingSpeed >= config.panicMinClosingSpeed
+               && distanceAhead / closingSpeed <= config.panicTimeToCollision;
+    }
 
-        if (panicTimer <= 0f)
-        {
-            float outward = Mathf.Sign(laneOffset);
-            float halfWidth = transform.localScale.x * 0.5f;
-            bool playerOnEdgeSide = (playerOnRoad.lateral - laneOffset) * outward > halfWidth;
-            float swerve = (playerOnEdgeSide ? -1f : 1f) * outward * config.dodgeDistance;
-
-            // Keep to this car's half of the road: between the centerline and the shoulder's edge.
-            float edge = road.GetRoadWidth() * 0.5f + road.Config.shoulderWidth - halfWidth;
-            float target = Mathf.Clamp((laneOffset + swerve) * outward, halfWidth, edge);
-            dodgeOffset = target * outward;
-        }
-
-        panicTimer = Mathf.Max(0.1f, config.panicHoldTime);
+    // Flinch toward this car's own road edge and skid to a stop as a physics object.
+    private void Panic()
+    {
+        Release();
+        Vector3 towardEdge = transform.right * Mathf.Sign(lateralOffset) * direction;
+        rb.linearVelocity += towardEdge * config.panicSwerveSpeed;
+        rb.angularVelocity = transform.up * (Mathf.Sign(lateralOffset) * direction * config.panicSwerveYawRate * Mathf.Deg2Rad);
+        rb.linearDamping = config.panicBrakeDrag;
     }
 
     // Lane center: a quarter of the usable road width from the centerline, on the travel side.
@@ -212,9 +191,7 @@ public class TrafficVehicle : MonoBehaviour
 
         float halfHeight = Mathf.Max(0.1f, transform.localScale.y * 0.5f);
         Vector3 lanePosition = position + right * lateralOffset + up * halfHeight;
-        // Turn the body into a swerve: heading follows forward speed plus sideways speed.
-        Vector3 heading = forward * direction * Mathf.Max(2f, currentSpeedMps) + right * lateralVelocity;
-        Quaternion rotation = Quaternion.LookRotation(heading, up);
+        Quaternion rotation = Quaternion.LookRotation(forward * direction, up);
         if (teleport)
         {
             transform.SetPositionAndRotation(lanePosition, rotation);
