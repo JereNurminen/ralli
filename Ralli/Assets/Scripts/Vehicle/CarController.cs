@@ -27,6 +27,8 @@ public class CarController : MonoBehaviour
     private bool inReverse;
     private float overdriveFactor;
     private float heat01;
+    private float overdriveHeldTime;
+    private float exitBoostTimer;
     private float frontGrip = 1f;
     private float rearGrip = 1f;
     private float frontGripUsage;
@@ -38,6 +40,7 @@ public class CarController : MonoBehaviour
     public float SteerAngleDegrees => steerAngle;
     public float OverdriveFactor => overdriveFactor;
     public float Heat01 => heat01;
+    public float ExitBoost01 => handling == null || handling.exitBoostDuration <= 0f ? 0f : exitBoostTimer / handling.exitBoostDuration;
     public float FrontGrip01 => frontGrip;
     public float RearGrip01 => rearGrip;
     public float FrontGripUsage01 => Mathf.Clamp01(frontGripUsage);
@@ -85,8 +88,9 @@ public class CarController : MonoBehaviour
         ApplyDrive(throttle, forwardSpeed, deltaTime);
 
         float frontShare = rearAxleOffset / (frontAxleOffset + rearAxleOffset);
-        frontGripUsage = ApplyAxleGrip(frontAxleOffset, steerAngle, handling.frontGripG * frontGrip, frontShare);
-        rearGripUsage = ApplyAxleGrip(-rearAxleOffset, 0f, handling.rearGripG * rearGrip, 1f - frontShare);
+        float exitGrip = 1f + handling.exitBoostGrip * ExitBoost01;
+        frontGripUsage = ApplyAxleGrip(frontAxleOffset, steerAngle, handling.frontGripG * frontGrip * exitGrip, frontShare);
+        rearGripUsage = ApplyAxleGrip(-rearAxleOffset, 0f, handling.rearGripG * rearGrip * exitGrip, 1f - frontShare);
     }
 
     private void ProbeGround()
@@ -131,6 +135,23 @@ public class CarController : MonoBehaviour
 
         float heatRate = overdrive ? handling.heatRiseRate : handling.heatFallRate;
         heat01 = Mathf.MoveTowards(heat01, overdrive ? 1f : 0f, heatRate * deltaTime);
+
+        // Releasing a proper Overdrive hold gives a short push + grip to exit the corner.
+        if (overdrive)
+        {
+            overdriveHeldTime += deltaTime;
+            exitBoostTimer = 0f;
+        }
+        else
+        {
+            if (overdriveHeldTime >= handling.exitBoostMinHold)
+            {
+                exitBoostTimer = handling.exitBoostDuration;
+            }
+
+            overdriveHeldTime = 0f;
+            exitBoostTimer = Mathf.Max(0f, exitBoostTimer - deltaTime);
+        }
     }
 
     private void UpdateGrip(bool overdrive, float deltaTime)
@@ -176,6 +197,14 @@ public class CarController : MonoBehaviour
         {
             float heatPower = Mathf.Lerp(1f, handling.powerAtMaxHeat, Mathf.InverseLerp(handling.heatTaperStart, 1f, heat01));
             push = handling.baseAcceleration * Mathf.Lerp(1f, handling.overdrivePowerMultiplier, overdriveFactor) * heatPower * throttle;
+            push += handling.exitBoostAcceleration * ExitBoost01 * (1f - input.Brake);
+        }
+
+        // Cancel most of the uphill gravity pull so climbs don't bleed speed.
+        float gravityAlongForward = Vector3.Dot(Physics.gravity, transform.forward);
+        if (gravityAlongForward * Mathf.Sign(forwardSpeed) < 0f)
+        {
+            push -= gravityAlongForward * (1f - handling.uphillGravityScale);
         }
 
         float speed01 = speed / Mathf.Max(1f, handling.maxSpeedKph / MpsToKph);
