@@ -429,6 +429,36 @@ MonoBehaviour:
   pitchDegrees: -3.32
   fieldOfView: 58.4
   nearClipPlane: 0.05
+  swayPerG: {x: 0.012, y: 0.008, z: 0.015}
+  maxSwayOffset: {x: 0.03, y: 0.02, z: 0.035}
+  swayFrequency: 1.6
+  swayDamping: 0.9
+  swayAccelerationSmoothing: 0.2
+  maxSwayG: 2.5
+  roadVibrationAmount: 0.0008
+  roadVibrationFrequency: 6
+  vibrationFullSpeedKph: 160
+  slamPerImpactSpeed: 0.35
+  maxSlamVelocity: 4
+  maxSlamOffset: {x: 0.1, y: 0.08, z: 0.16}
+  slamFrequency: 3
+  slamDamping: 0.45
+  slamNodPerMeter: 70
+  slamRollPerMeter: 50
+  shakePerImpactSpeed: 0.08
+  shakeDecay: 1.6
+  shakeAmount: 0.04
+  shakeRotation: 5
+  shakeFrequency: 22
+  slideFollow: 0.5
+  maxSlideLook: 25
+  slideLookMinSpeedKph: 15
+  spinFadeDegrees: {x: 35, y: 75}
+  steerLook: 3
+  lookSmoothTime: 0.25
+  maxManualLook: 50
+  manualLookSmoothTime: 0.12
+  autoLookWhileManual: 0.3
 --- !u!1 &410087039
 GameObject:
   m_ObjectHideFlags: 0
@@ -1523,6 +1553,7 @@ MonoBehaviour:
   handling: {fileID: 11400000, guid: 97ab18c147842493784200e7ac242be8, type: 2}
   frontAxleOffset: 1.21
   rearAxleOffset: 1.21
+  minImpactSpeedChange: 1.5
   groundMask:
     serializedVersion: 2
     m_Bits: 4294967295
@@ -1912,7 +1943,7 @@ MonoBehaviour:
   viewOffset: {x: -0.05, y: 0.02, z: 0}
   reflectFromEye: 0
   resolutionHeight: 64
-  renderEveryNthFrame: 2
+  renderEveryNthFrame: 1
   nearClip: 0.1
   farClip: 400
   roundness: 0.6
@@ -2022,7 +2053,7 @@ MonoBehaviour:
   viewOffset: {x: 0, y: 0, z: 0}
   reflectFromEye: 0
   resolutionHeight: 64
-  renderEveryNthFrame: 2
+  renderEveryNthFrame: 1
   nearClip: 0.1
   farClip: 400
   roundness: 0.15
