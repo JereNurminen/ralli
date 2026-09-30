@@ -27,6 +27,7 @@ public class VehicleDebugInfoProvider : MonoBehaviour, IDebugInfoProvider
         builder.AddFloat("Drift Angle (deg)", carController.DriftAngle);
         builder.AddFloat("Overdrive", carController.OverdriveFactor);
         builder.AddFloat("Engine Heat", carController.Heat01);
+        builder.AddFloat("Exit Boost", carController.ExitBoost01);
         builder.AddFloat("Front Grip", carController.FrontGrip01);
         builder.AddFloat("Rear Grip", carController.RearGrip01);
         builder.AddFloat("Front Grip Usage", carController.FrontGripUsage01);

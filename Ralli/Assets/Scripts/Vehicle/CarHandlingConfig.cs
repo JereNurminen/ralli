@@ -19,8 +19,8 @@ public class CarHandlingConfig : ScriptableObject
     [Header("Power")]
     [Tooltip("Forward acceleration at full throttle (m/s²).")]
     public float baseAcceleration = 5.5f;
-    [Tooltip("Approximate top speed on normal throttle (km/h).")]
-    public float maxSpeedKph = 150f;
+    [Tooltip("Drag reference speed (km/h). Normal-throttle top speed lands ~5% below this.")]
+    public float maxSpeedKph = 210f;
     [Tooltip("Power multiplier with Overdrive fully in. Top speed scales by sqrt of this.")]
     public float overdrivePowerMultiplier = 1.6f;
     [Tooltip("How quickly Overdrive ramps in (per second).")]
@@ -35,6 +35,18 @@ public class CarHandlingConfig : ScriptableObject
     public float reverseAcceleration = 3f;
     [Tooltip("Reverse speed cap (km/h).")]
     public float reverseMaxSpeedKph = 25f;
+    [Tooltip("Fraction of uphill gravity pull kept. 0 = hills never slow the car, 1 = full gravity. Downhill is unaffected.")]
+    [Range(0f, 1f)] public float uphillGravityScale = 0.3f;
+
+    [Header("Overdrive Exit Boost")]
+    [Tooltip("Overdrive must be held at least this long (s) for release to give an exit boost.")]
+    public float exitBoostMinHold = 0.4f;
+    [Tooltip("How long the exit boost lasts (s). Fades out linearly.")]
+    public float exitBoostDuration = 0.6f;
+    [Tooltip("Extra forward acceleration at the start of the exit boost (m/s²).")]
+    public float exitBoostAcceleration = 4f;
+    [Tooltip("Extra grip on both axles at the start of the exit boost (0.25 = +25%).")]
+    public float exitBoostGrip = 0.25f;
 
     [Header("Engine Heat")]
     [Tooltip("Heat gained per second while Overdrive is held (0..1). 0.125 = 8 s from cold to max.")]
