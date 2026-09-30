@@ -36,40 +36,38 @@ public class RoadGenerationConfig : ScriptableObject
     public float ditchDepth = 0.55f;
     [Tooltip("Flat bottom width of the ditch in meters (0 = V-shaped).")]
     public float ditchBottomFlatWidth = 0f;
-    [Tooltip("Collidable forest floor width beyond the ditch in meters.")]
-    public float collidableForestWidth = 2.5f;
-    [Tooltip("Vertical drop-skirt depth at the forest floor outer edge in meters.")]
-    public float dropSkirtDepth = 3f;
-    [Tooltip("Forest floor vertical offset from road centerline Y in meters (negative = lower).")]
+    [Tooltip("Ditch outer lip height relative to road centerline Y in meters (negative = lower). Terrain meets the road here.")]
     public float forestFloorYOffset = -0.05f;
+    [Tooltip("Short downward apron below the ditch outer lip (m). Hides small gaps between road mesh and terrain.")]
+    public float corridorApronDepth = 1.5f;
+    [Tooltip("Min curve radius = corridor half-width x this. Guarantees the road corridor mesh never folds on tight turns.")]
+    public float corridorRadiusMargin = 1.5f;
     [Header("Forest Trees")]
     [Tooltip("Enable procedural tree spawning on the forest floor.")]
     public bool spawnForestTrees = true;
-    [Tooltip("Target number of trees spawned per generated road chunk.")]
-    public int forestTreesPerChunk = 120;
+    [Tooltip("Trees spawn this far beyond the ditch clearance (m). Beyond it there is bare terrain for fog to hide.")]
+    public float treeBandWidth = 45f;
+    [Tooltip("Tree grid cell size (m). One tree candidate per cell, jittered inside it.")]
+    public float treeCellSize = 5f;
+    [Tooltip("Chance a grid cell gets a tree.")]
+    [Range(0f, 1f)] public float treeDensity = 0.6f;
     [Tooltip("Birch-to-pine mix. 1 = all birch, 0 = all pine.")]
     [Range(0f, 1f)] public float birchRatio = 0.65f;
-    [Tooltip("Minimum trunk spacing in meters between spawned trees.")]
-    public float treeTrunkSafeRadius = 1.4f;
-    [Tooltip("How many attempts to make per target tree count.")]
-    public int treeSpawnAttemptsMultiplier = 8;
     [Tooltip("Extra lateral clearance from ditch outer edge before trees may spawn (meters).")]
     public float treeDitchClearance = 1.5f;
-    [Tooltip("Trunk collider width/depth in meters.")]
+    [Tooltip("Trunk collider diameter in meters.")]
     public float treeColliderWidth = 0.6f;
     [Tooltip("Trunk collider height in meters.")]
     public float treeColliderHeight = 8f;
     [Tooltip("Base rotation offset applied to tree models before random yaw.")]
     public Vector3 treeModelRotationOffsetEuler = new Vector3(-90f, 0f, 0f);
-    [Tooltip("Inner edge compression cap as a fraction of curve radius (higher = less ditch pinching).")]
-    [Range(0.4f, 0.95f)] public float innerProfileCompressionRadiusFactor = 0.8f;
     [Tooltip("Max heading change rate in deg/m.")]
     public float maxTurnRateDegPerMeter = 0.22f;
     [Tooltip("How quickly turn rate moves toward piece target (0..1 per sample).")]
     [Range(0.01f, 1f)] public float turnRateResponse = 0.08f;
 
     [Header("Elevation")]
-    [Tooltip("Enable procedural hills and bumps.")]
+    [Tooltip("Road follows terrain height and gets short bumps. Off = flat road (terrain still has relief).")]
     public bool enableHills = true;
     [Tooltip("Short bump amplitude in meters.")]
     public float smallBumpAmplitude = 0.9f;
@@ -79,14 +77,38 @@ public class RoadGenerationConfig : ScriptableObject
     [Range(0f, 1f)] public float smallBumpOccurrence = 0.28f;
     [Tooltip("Typical length of bump/no-bump patches in meters.")]
     public float smallBumpPatchLength = 140f;
-    [Tooltip("Long hill amplitude in meters.")]
-    public float largeHillAmplitude = 8f;
-    [Tooltip("Long hill wavelength in meters.")]
-    public float largeHillWavelength = 360f;
+    [Tooltip("Distance (m) over which the road climbs/descends to catch up with the terrain height.")]
+    public float elevationCatchupDistance = 30f;
+    [Tooltip("Distance (m) over which the height offset left by a designed elevation piece fades back to terrain height.")]
+    public float designedElevationOffsetFade = 400f;
     [Tooltip("Maximum road grade angle in degrees.")]
     public float maxSlopeAngleDeg = 8f;
     [Tooltip("How quickly slope follows target elevation change (0..1 per sample).")]
     [Range(0.01f, 1f)] public float slopeResponse = 0.12f;
+
+    [Header("Terrain")]
+    [Tooltip("Terrain tile size (m).")]
+    public float terrainTileSize = 48f;
+    [Tooltip("Quads per tile side. Tile size / this = vertex spacing.")]
+    public int terrainTileResolution = 24;
+    [Tooltip("Tiles are kept within this distance of the stream center (m).")]
+    public float terrainRadius = 240f;
+    [Tooltip("Stream center is shifted this far (m) from the car toward the target bearing.")]
+    public float terrainBearingBias = 60f;
+    [Tooltip("Max tiles built per frame. Limits hitches.")]
+    public int terrainTilesPerFrame = 4;
+    [Tooltip("Base wavelength of terrain relief (m).")]
+    public float terrainNoiseScale = 260f;
+    [Tooltip("Terrain relief amplitude (m).")]
+    public float terrainNoiseAmplitude = 16f;
+    [Tooltip("Noise octaves. Each adds half the amplitude at double the frequency.")]
+    [Range(1, 5)] public int terrainNoiseOctaves = 3;
+    [Tooltip("Width (m) beyond the road corridor where terrain blends from road height to its own height (cut/fill zone).")]
+    public float roadBlendWidth = 25f;
+    [Tooltip("Flat ring (m) at road lip height right outside the corridor before the blend starts.")]
+    public float roadFlatRing = 1.5f;
+    [Tooltip("How far (m) terrain sits below the ditch lip under the road corridor, so it never pokes through.")]
+    public float corridorTuckDepth = 1.2f;
 
     [Header("Road Pieces")]
     [Tooltip("Chance that the next piece is a curve instead of a straight.")]
@@ -113,7 +135,7 @@ public class RoadGenerationConfig : ScriptableObject
     public float minProceduralBetweenDesigned = 200f;
     [Tooltip("Maximum procedural distance between designed pieces (meters).")]
     public float maxProceduralBetweenDesigned = 600f;
-    [Tooltip("How strongly to prefer pieces that correct heading drift (0 = random, 1 = always correct).")]
+    [Tooltip("How strongly designed pieces and procedural curve directions correct heading drift (0 = random, 1 = strong).")]
     [Range(0f, 1f)] public float headingCorrectionStrength = 0.4f;
     [Tooltip("Target average heading in degrees (0 = north/forward).")]
     public float targetBearing = 0f;
