@@ -7,6 +7,8 @@ public class CarInputReader : MonoBehaviour
     public float Brake { get; private set; }
     public bool Handbrake { get; private set; }
     public bool Overdrive { get; private set; }
+    // Which bound control currently drives Steer (e.g. "/XInputControllerOSX/leftStick/x"). Debug aid.
+    public string SteerSourcePath => actions?.Driving.Steer.activeControl?.path ?? "-";
 
     private InputSystem_Actions actions;
 

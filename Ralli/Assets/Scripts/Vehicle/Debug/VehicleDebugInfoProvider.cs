@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 [RequireComponent(typeof(CarController))]
 [RequireComponent(typeof(CarInputReader))]
@@ -37,5 +38,15 @@ public class VehicleDebugInfoProvider : MonoBehaviour, IDebugInfoProvider
         builder.AddFloat("Input Steer", carInput.Steer);
         builder.AddBool("Input Handbrake", carInput.Handbrake);
         builder.AddBool("Input Overdrive", carInput.Overdrive);
+        builder.AddValue("Steer Source", carInput.SteerSourcePath);
+
+        Gamepad gamepad = Gamepad.current;
+        builder.AddValue("Gamepad", gamepad != null ? gamepad.displayName : "none");
+        if (gamepad != null)
+        {
+            Vector2 stick = gamepad.leftStick.ReadUnprocessedValue();
+            builder.AddFloat("Raw Left Stick X", stick.x);
+            builder.AddFloat("Raw Left Stick Y", stick.y);
+        }
     }
 }
