@@ -73,6 +73,19 @@ public class TrafficConfig : ScriptableObject
     [Tooltip("Distance to player (m) where a traffic car is released from spline-following and becomes dynamic.")]
     [Min(0.05f)] public float ragdollReleaseDistance = 0.5f;
 
+    [Header("Real Headlights (pooled)")]
+    [Tooltip("How many traffic cars get real headlights that light the road (nearest oncoming first). Fixed cost, regardless of traffic density.")]
+    [Range(0, 8)] public int realHeadlightCount = 4;
+    [Tooltip("Only cars ahead of the player within this distance along the road (m) qualify.")]
+    public float realHeadlightMaxDistance = 150f;
+    public float realHeadlightIntensity = 25f;
+    public float realHeadlightRange = 45f;
+    public float realHeadlightAngle = 70f;
+    [Tooltip("Fade time (s) when a light moves between cars, so it never pops.")]
+    public float realHeadlightFadeTime = 0.3f;
+    [Tooltip("How visible the fake beam of these lights is. 0 = off.")]
+    [Range(0f, 1f)] public float realHeadlightBeamVisibility = 0.1f;
+
     [Header("Debug")]
     [Tooltip("Show a ball above each car: green = following its lane, red = braking, black = released to physics.")]
     public bool showStateMarkers;
