@@ -89,6 +89,7 @@ public class RoadStreamGenerator : MonoBehaviour
     private float[] stationCentersS = Array.Empty<float>();
     private float roadEndS = float.PositiveInfinity;
     private readonly List<StationLot> stationLots = new List<StationLot>();
+    private readonly List<GameObject> stationLotSurfaces = new List<GameObject>();
 
     private float sampleDistance;
     private int pieceIndex = -1;
@@ -172,6 +173,7 @@ public class RoadStreamGenerator : MonoBehaviour
         EnsureInitialized();
 
         EnsureChunkRange(0, Mathf.Max(1, config.chunksAhead));
+        BuildStationLotSurfaces();
         lastActiveMinChunk = 0;
         lastActiveMaxChunk = Mathf.Max(1, config.chunksAhead);
         LogSmoothnessDiagnostics();
@@ -1702,6 +1704,59 @@ public class RoadStreamGenerator : MonoBehaviour
         }
 
         ListPool<int>.Release(toRemove);
+    }
+
+    // Paved yard for each station lot, in the road material, from the asphalt edge (covering the
+    // flattened shoulder and ditch) to the back of the lot. Sits a hair above road level.
+    private void BuildStationLotSurfaces()
+    {
+        foreach (GameObject surface in stationLotSurfaces)
+        {
+            Destroy(surface);
+        }
+
+        stationLotSurfaces.Clear();
+        IReadOnlyList<StationLot> lots = GetStationLots();
+        float shoulder = Mathf.Max(0f, config.shoulderWidth);
+        for (int i = 0; i < lots.Count; i++)
+        {
+            StationLot lot = lots[i];
+            float half = lot.length * 0.5f;
+            Vector3 lift = Vector3.up * 0.02f;
+            Vector3[] vertices =
+            {
+                lot.origin - lot.right * shoulder - lot.forward * half + lift,
+                lot.origin + lot.right * lot.depth - lot.forward * half + lift,
+                lot.origin - lot.right * shoulder + lot.forward * half + lift,
+                lot.origin + lot.right * lot.depth + lot.forward * half + lift
+            };
+
+            // Road-space UVs far off the centerline, so the shader draws no lane markings.
+            const float noMarkings = 100f;
+            var mesh = new Mesh
+            {
+                name = $"StationLot_{i}",
+                vertices = vertices,
+                normals = new[] { Vector3.up, Vector3.up, Vector3.up, Vector3.up },
+                colors = new[] { Color.red, Color.red, Color.red, Color.red },
+                uv = new[]
+                {
+                    new Vector2(noMarkings - shoulder, -half),
+                    new Vector2(noMarkings + lot.depth, -half),
+                    new Vector2(noMarkings - shoulder, half),
+                    new Vector2(noMarkings + lot.depth, half)
+                },
+                triangles = new[] { 0, 2, 1, 1, 2, 3 }
+            };
+            mesh.RecalculateBounds();
+
+            var surface = new GameObject($"StationLot_{i}");
+            surface.transform.SetParent(transform, true);
+            surface.AddComponent<MeshFilter>().sharedMesh = mesh;
+            surface.AddComponent<MeshRenderer>().sharedMaterial = roadMaterial;
+            surface.AddComponent<MeshCollider>().sharedMesh = mesh;
+            stationLotSurfaces.Add(surface);
+        }
     }
 
     private void ClearChunks()
