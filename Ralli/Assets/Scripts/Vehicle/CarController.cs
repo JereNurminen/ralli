@@ -15,6 +15,10 @@ public class CarController : MonoBehaviour
     [Tooltip("Rear axle distance behind the pivot (m).")]
     [SerializeField] private float rearAxleOffset = 1.21f;
 
+    [Header("Impacts")]
+    [Tooltip("Collisions that change the car's speed less than this (m/s) don't fire Impact.")]
+    [SerializeField] private float minImpactSpeedChange = 1.5f;
+
     [Header("Grounding")]
     [SerializeField] private LayerMask groundMask = ~0;
 
@@ -49,6 +53,9 @@ public class CarController : MonoBehaviour
     public float FrontGripUsage01 => Mathf.Clamp01(frontGripUsage);
     public float RearGripUsage01 => Mathf.Clamp01(rearGripUsage);
     public float DriftAngle => GetDriftAngle();
+
+    // Fired on a hard collision: speed change (m/s) and the world direction the car was pushed.
+    public event System.Action<float, Vector3> Impact;
 
     private void Awake()
     {
@@ -304,6 +311,23 @@ public class CarController : MonoBehaviour
         Vector3 flatForward = transform.forward;
         flatForward.y = 0f;
         return Vector3.SignedAngle(flatForward.normalized, velocity.normalized, Vector3.up);
+    }
+
+    private void OnCollisionEnter(Collision collision)
+    {
+        float speedChange = collision.impulse.magnitude / Mathf.Max(1f, rb.mass);
+        if (speedChange < minImpactSpeedChange || collision.contactCount == 0)
+        {
+            return;
+        }
+
+        Vector3 push = Vector3.zero;
+        for (int i = 0; i < collision.contactCount; i++)
+        {
+            push += collision.GetContact(i).normal;
+        }
+
+        Impact?.Invoke(speedChange, push.normalized);
     }
 
     private void OnDrawGizmosSelected()
