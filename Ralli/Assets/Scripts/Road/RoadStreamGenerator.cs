@@ -63,6 +63,8 @@ public class RoadStreamGenerator : MonoBehaviour
     private const float SampleBucketSize = 16f;
     private TerrainHeightField heightField;
     private int generation;
+    // Seed actually used: config.seed, or a random 6-digit seed when config.seed is 0.
+    private int activeSeed;
     private Material runtimeRailFallbackMaterial;
 
     private enum PieceType { Straight, Curve, Designed }
@@ -218,7 +220,7 @@ public class RoadStreamGenerator : MonoBehaviour
 
     public int GetSeed()
     {
-        return config != null ? config.seed : 0;
+        return activeSeed;
     }
 
     public int GetChunkIndexForS(float s)
@@ -1054,6 +1056,8 @@ public class RoadStreamGenerator : MonoBehaviour
             return;
         }
 
+        activeSeed = config.seed != 0 ? config.seed : UnityEngine.Random.Range(100000, 1000000);
+
         RoadSample first = new RoadSample
         {
             s = 0f,
@@ -1069,7 +1073,7 @@ public class RoadStreamGenerator : MonoBehaviour
         };
         samples.Add(first);
         AddSampleToBucket(0);
-        heightField = new TerrainHeightField(config, first.position);
+        heightField = new TerrainHeightField(config, activeSeed, first.position);
         ResetPieceState();
     }
 
@@ -1122,7 +1126,7 @@ public class RoadStreamGenerator : MonoBehaviour
     {
         float smallWavelength = Mathf.Max(6f, config.smallBumpWavelength);
         float bumpPatchLength = Mathf.Max(20f, config.smallBumpPatchLength);
-        float seedOffset = config.seed * 0.137f;
+        float seedOffset = activeSeed * 0.137f;
         float smallPhase = (s + seedOffset * 17f) * (Mathf.PI * 2f) / smallWavelength;
 
         float bumpMaskNoise = Mathf.PerlinNoise((s + seedOffset * 97f) / bumpPatchLength, 0.37f);
@@ -1326,7 +1330,7 @@ public class RoadStreamGenerator : MonoBehaviour
     {
         unchecked
         {
-            uint x = (uint)config.seed;
+            uint x = (uint)activeSeed;
             x ^= (uint)(index + 1) * 747796405u;
             x ^= (uint)(salt + 17) * 2891336453u;
             x ^= x >> 16;

@@ -8,12 +8,12 @@ public class TerrainHeightField
     private readonly Vector2 noiseOffset;
     private readonly float baseHeight;
 
-    public TerrainHeightField(RoadGenerationConfig config, Vector3 origin)
+    public TerrainHeightField(RoadGenerationConfig config, int seed, Vector3 origin)
     {
         this.config = config;
         noiseOffset = new Vector2(
-            Hash01(config.seed, 0, 0, 11) * 10000f,
-            Hash01(config.seed, 0, 0, 12) * 10000f
+            Hash01(seed, 0, 0, 11) * 10000f,
+            Hash01(seed, 0, 0, 12) * 10000f
         );
         baseHeight = origin.y - RawHeight(origin.x, origin.z);
     }

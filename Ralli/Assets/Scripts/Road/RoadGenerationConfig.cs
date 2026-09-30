@@ -4,7 +4,7 @@ using UnityEngine;
 public class RoadGenerationConfig : ScriptableObject
 {
     [Header("Determinism")]
-    [Tooltip("Seed for deterministic road generation.")]
+    [Tooltip("Seed for deterministic road generation. 0 = pick a random 6-digit seed on every (re)build.")]
     public int seed = 1337;
 
     [Header("Chunking")]
