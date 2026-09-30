@@ -9,7 +9,8 @@ using UnityEngine.SceneManagement;
 // start one, engine off. Nothing moves until the throttle starts the engine; traffic spawning and
 // the police countdown (the start delay, or the previous stage's lead) wait until the car leaves
 // the start lot. Driving onto the finish lot stops the car, lets the police blast past and ends
-// the stage; being caught ends the run. Either way a placeholder card follows, and a key
+// the stage; being caught (the police getting past the player) brakes the car, turns the view to
+// the van and ends the run. Either way a placeholder card follows, and a key
 // press reloads the scene as the next stage (or a new run).
 [DefaultExecutionOrder(-100)]
 public class StageDirector : MonoBehaviour
@@ -19,6 +20,11 @@ public class StageDirector : MonoBehaviour
     [SerializeField] private StageProgression progression;
     [SerializeField] private GasStation stationPrefab;
 
+    [Tooltip("Police start delay on the first stage (s), counted from leaving the start lot. Later stages use the lead the player finished the previous stage with.")]
+    [SerializeField] private float firstStageLeadSeconds = 10f;
+    [Tooltip("How hard the car is braked when the police get past it (m/s²).")]
+    [SerializeField] private float caughtStopDeceleration = 15f;
+
     [Header("Scene (found automatically when empty)")]
     [SerializeField] private RoadStreamGenerator road;
     [SerializeField] private CarController car;
@@ -27,6 +33,7 @@ public class StageDirector : MonoBehaviour
     [SerializeField] private LightingDirector lighting;
     [SerializeField] private ScoreSystem score;
     [SerializeField] private MusicDirector music;
+    [SerializeField] private InCarCamera inCarCamera;
 
     [Header("Card")]
     [SerializeField] private float fadeTime = 1f;
@@ -77,10 +84,9 @@ public class StageDirector : MonoBehaviour
         {
             PoliceConfig policeConfig = Instantiate(police.Config);
             policeConfig.chaseSpeedKph = stage.policeChaseSpeedKph;
-            if (RunState.StageIndex > 0)
-            {
-                policeConfig.startDelay = Mathf.Max(progression.minPoliceDelay, RunState.LeadSeconds);
-            }
+            policeConfig.startDelay = RunState.StageIndex == 0
+                ? firstStageLeadSeconds
+                : Mathf.Max(progression.minPoliceDelay, RunState.LeadSeconds);
 
             police.UseConfig(policeConfig);
             police.HoldStart = true;
@@ -132,6 +138,7 @@ public class StageDirector : MonoBehaviour
         if (lighting == null) lighting = FindFirstObjectByType<LightingDirector>();
         if (score == null) score = FindFirstObjectByType<ScoreSystem>();
         if (music == null) music = FindFirstObjectByType<MusicDirector>();
+        if (inCarCamera == null) inCarCamera = FindFirstObjectByType<InCarCamera>();
     }
 
     private void ParkCar(Transform spot)
@@ -171,6 +178,12 @@ public class StageDirector : MonoBehaviour
         }
 
         outcome = Outcome.Caught;
+        car.BeginAssistedStop(caughtStopDeceleration);
+        if (inCarCamera != null)
+        {
+            inCarCamera.LookAt(police.Van);
+        }
+
         EndScoringAndMusic();
         StartCoroutine(ShowCardAfter(caughtCardDelay));
     }
