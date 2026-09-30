@@ -39,7 +39,7 @@ public class BoostPostProcessing : MonoBehaviour
 
     private void LateUpdate()
     {
-        float target = carController != null ? carController.BoostFactor : 0f;
+        float target = carController != null ? carController.OverdriveFactor : 0f;
         float rate = target > smoothedBoost ? rampUp : rampDown;
         smoothedBoost = Mathf.Lerp(smoothedBoost, target, 1f - Mathf.Exp(-rate * Time.deltaTime));
 

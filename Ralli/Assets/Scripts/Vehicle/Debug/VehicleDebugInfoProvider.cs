@@ -2,7 +2,6 @@ using UnityEngine;
 
 [RequireComponent(typeof(CarController))]
 [RequireComponent(typeof(CarInputReader))]
-[RequireComponent(typeof(Rigidbody))]
 public class VehicleDebugInfoProvider : MonoBehaviour, IDebugInfoProvider
 {
     public int Priority => 100;
@@ -11,37 +10,31 @@ public class VehicleDebugInfoProvider : MonoBehaviour, IDebugInfoProvider
 
     private CarController carController;
     private CarInputReader carInput;
-    private Rigidbody rb;
 
     private void Awake()
     {
         carController = GetComponent<CarController>();
         carInput = GetComponent<CarInputReader>();
-        rb = GetComponent<Rigidbody>();
     }
 
     public void BuildDebugInfo(DebugPanelBuilder builder)
     {
         builder.BeginSection("Vehicle");
-        builder.AddFloat("Speed (m/s)", carController.SpeedMps);
         builder.AddFloat("Speed (km/h)", carController.SpeedMps * 3.6f);
-        builder.AddFloat("Steer Angle (deg)", carController.SteerAngleDegrees);
-        builder.AddFloat("Steer Factor", carController.CurrentSteerFactor);
-        builder.AddInt("Fake Gear", carController.CurrentFakeGear);
-        builder.AddFloat("Fake RPM", carController.FakeRpm01);
-        builder.AddInt("Grounded Wheels", carController.GroundedWheelCount);
         builder.AddBool("Grounded", carController.IsGrounded);
-
+        builder.AddBool("In Reverse", carController.InReverse);
+        builder.AddFloat("Steer Angle (deg)", carController.SteerAngleDegrees);
+        builder.AddFloat("Drift Angle (deg)", carController.DriftAngle);
+        builder.AddFloat("Overdrive", carController.OverdriveFactor);
+        builder.AddFloat("Engine Heat", carController.Heat01);
+        builder.AddFloat("Front Grip", carController.FrontGrip01);
+        builder.AddFloat("Rear Grip", carController.RearGrip01);
+        builder.AddFloat("Front Grip Usage", carController.FrontGripUsage01);
+        builder.AddFloat("Rear Grip Usage", carController.RearGripUsage01);
         builder.AddFloat("Input Throttle", carInput.Throttle);
         builder.AddFloat("Input Brake", carInput.Brake);
         builder.AddFloat("Input Steer", carInput.Steer);
         builder.AddBool("Input Handbrake", carInput.Handbrake);
-        builder.AddBool("Input Boost", carInput.Boost);
-        builder.AddBool("Boosting", carController.IsBoosting);
-        builder.AddFloat("Boost Factor", carController.BoostFactor);
-        builder.AddFloat("Drift Angle (deg)", carController.DriftAngle);
-
-        builder.AddVector3("Velocity", rb.linearVelocity);
-        builder.AddVector3("Angular Velocity", rb.angularVelocity);
+        builder.AddBool("Input Overdrive", carInput.Overdrive);
     }
 }

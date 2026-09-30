@@ -4,105 +4,48 @@ using UnityEngine;
 [RequireComponent(typeof(CarInputReader))]
 public class CarController : MonoBehaviour
 {
-    public struct WheelVisualState
-    {
-        public Vector3 AnchorPosition;
-        public Vector3 SuspensionUp;
-        public Vector3 Forward;
-        public float SuspensionLength;
-        public float Radius;
-        public float SteerAngleDegrees;
-        public bool Grounded;
-    }
-
-    public struct WheelTelemetry
-    {
-        public string Name;
-        public bool Grounded;
-        public float SpringForce;
-        public float LateralForce;
-        public float LongitudinalForce;
-        public float MaxTireForce;
-        public Vector3 AppliedForceWorld;
-        public Vector3 ContactPoint;
-        public Vector3 ContactNormal;
-        public Vector3 Forward;
-        public Vector3 Right;
-    }
-
-    private enum Axle
-    {
-        Front,
-        Rear
-    }
-
-    [System.Serializable]
-    private class Wheel
-    {
-        public string name;
-        public Axle axle;
-        public Transform anchor;
-
-        [HideInInspector] public bool grounded;
-        [HideInInspector] public float springLength;
-        [HideInInspector] public float springVelocity;
-        [HideInInspector] public float springForce;
-        [HideInInspector] public float lastLateralForce;
-        [HideInInspector] public float lastLongitudinalForce;
-        [HideInInspector] public float lastMaxTireForce;
-        [HideInInspector] public Vector3 lastAppliedForceWorld;
-        [HideInInspector] public Vector3 lastContactPoint;
-        [HideInInspector] public Vector3 lastContactNormal;
-        [HideInInspector] public Vector3 lastForward;
-        [HideInInspector] public Vector3 lastRight;
-    }
+    private const float MpsToKph = 3.6f;
 
     [Header("Config")]
     [SerializeField] private CarHandlingConfig handling;
 
-    [Header("Wheel Anchors")]
-    [SerializeField] private Wheel frontLeft = new Wheel { name = "FrontLeft", axle = Axle.Front };
-    [SerializeField] private Wheel frontRight = new Wheel { name = "FrontRight", axle = Axle.Front };
-    [SerializeField] private Wheel rearLeft = new Wheel { name = "RearLeft", axle = Axle.Rear };
-    [SerializeField] private Wheel rearRight = new Wheel { name = "RearRight", axle = Axle.Rear };
+    [Header("Geometry")]
+    [Tooltip("Front axle distance ahead of the pivot (m).")]
+    [SerializeField] private float frontAxleOffset = 1.3f;
+    [Tooltip("Rear axle distance behind the pivot (m).")]
+    [SerializeField] private float rearAxleOffset = 1.3f;
 
     [Header("Grounding")]
     [SerializeField] private LayerMask groundMask = ~0;
 
     private Rigidbody rb;
     private CarInputReader input;
-    private Wheel[] wheels;
+    private bool grounded;
+    private float groundDistance;
+    private Vector3 groundNormal = Vector3.up;
     private float steerAngle;
-    private int groundedWheels;
-    private int groundedFrontWheels;
-    private float currentSteerFactor = 1f;
-    private int currentFakeGear;
-    private float currentFakeRpm01;
-    private float shiftPauseTimer;
-    private float baseDriveForceNow;
-    private float baseEngineBrakingForceNow;
-    private float boostFactor;
-    private float nearZeroSteerTime;
     private bool inReverse;
+    private float overdriveFactor;
+    private float heat01;
+    private float frontGrip = 1f;
+    private float rearGrip = 1f;
+    private float frontGripUsage;
+    private float rearGripUsage;
 
     public float SpeedMps => rb == null ? 0f : rb.linearVelocity.magnitude;
+    public bool IsGrounded => grounded;
     public bool InReverse => inReverse;
     public float SteerAngleDegrees => steerAngle;
-    public float CurrentSteerFactor => currentSteerFactor;
-    public int CurrentFakeGear => currentFakeGear + 1;
-    public float FakeRpm01 => currentFakeRpm01;
-    public int GroundedWheelCount => groundedWheels;
-    public bool IsGrounded => groundedWheels > 0;
-    public int WheelCount => 4;
-    public float WheelRadius => handling == null ? 0.35f : handling.wheelRadius;
-    public bool IsBoosting => boostFactor > 0.01f;
-    public float BoostFactor => boostFactor;
+    public float OverdriveFactor => overdriveFactor;
+    public float Heat01 => heat01;
+    public float FrontGrip01 => frontGrip;
+    public float RearGrip01 => rearGrip;
+    public float FrontGripUsage01 => Mathf.Clamp01(frontGripUsage);
+    public float RearGripUsage01 => Mathf.Clamp01(rearGripUsage);
     public float DriftAngle => GetDriftAngle();
 
     private void Awake()
     {
-        EnsureWheelAnchors();
-
         if (handling == null)
         {
             handling = ScriptableObject.CreateInstance<CarHandlingConfig>();
@@ -110,29 +53,7 @@ public class CarController : MonoBehaviour
 
         rb = GetComponent<Rigidbody>();
         input = GetComponent<CarInputReader>();
-        wheels = new[] { frontLeft, frontRight, rearLeft, rearRight };
-
         rb.centerOfMass = new Vector3(0f, handling.centerOfMassYOffset, 0f);
-
-        for (int i = 0; i < wheels.Length; i++)
-        {
-            wheels[i].springLength = handling.suspensionRestLength;
-            wheels[i].springVelocity = 0f;
-            wheels[i].springForce = 0f;
-        }
-    }
-
-    private void Reset()
-    {
-        EnsureWheelAnchors();
-    }
-
-    private void OnValidate()
-    {
-        if (!Application.isPlaying)
-        {
-            EnsureWheelAnchors();
-        }
     }
 
     private void FixedUpdate()
@@ -142,351 +63,169 @@ public class CarController : MonoBehaviour
             return;
         }
 
-        groundedWheels = 0;
-        groundedFrontWheels = 0;
-        float signedForwardSpeedMps = Vector3.Dot(rb.linearVelocity, transform.forward);
+        float deltaTime = Time.fixedDeltaTime;
+        bool overdrive = input.Overdrive;
+        float throttle = overdrive ? 1f : input.Throttle;
+        float forwardSpeed = Vector3.Dot(rb.linearVelocity, transform.forward);
 
-        currentSteerFactor = CarSteeringModel.EvaluateSteerFactor(signedForwardSpeedMps, handling);
-        steerAngle = CarSteeringModel.StepSteerAngle(
-            steerAngle,
-            input.Steer,
-            currentSteerFactor,
-            handling,
-            Time.fixedDeltaTime
-        );
-        int frontGroundedCountNow = GetFrontGroundedCountNow();
-        steerAngle = CarSteeringModel.ApplyFrontWheelAuthority(steerAngle, frontGroundedCountNow, handling);
+        ProbeGround();
+        UpdateSteering(forwardSpeed, deltaTime);
+        UpdateReverse(throttle, forwardSpeed);
+        UpdateOverdrive(overdrive, deltaTime);
+        UpdateGrip(overdrive, deltaTime);
 
-        inReverse = CarDriveModel.UpdateReverseState(inReverse, input.Brake, input.Throttle, signedForwardSpeedMps);
-
-        CarDriveModel.DriveState driveState = CarDriveModel.UpdateDriveState(
-            signedForwardSpeedMps,
-            handling,
-            currentFakeGear,
-            shiftPauseTimer,
-            Time.fixedDeltaTime
-        );
-        currentFakeGear = driveState.GearIndex;
-        currentFakeRpm01 = driveState.GearRpm01;
-        shiftPauseTimer = driveState.ShiftPauseTimer;
-        baseDriveForceNow = driveState.BaseDriveForce;
-        baseEngineBrakingForceNow = driveState.BaseEngineBrakingForce;
-
-        boostFactor = CarDriveModel.StepBoostFactor(boostFactor, input.Boost, handling, Time.fixedDeltaTime);
-
-        SimulateWheel(frontLeft);
-        SimulateWheel(frontRight);
-        SimulateWheel(rearLeft);
-        SimulateWheel(rearRight);
-
-        ApplyAntiRoll(frontLeft, frontRight);
-        ApplyAntiRoll(rearLeft, rearRight);
-
-        if (groundedWheels > 0)
+        if (!grounded)
         {
-            ApplyPassiveResistance();
-            ApplyAngularDamping();
-            ApplyStraighteningAssist();
+            frontGripUsage = 0f;
+            rearGripUsage = 0f;
+            return;
+        }
+
+        ApplySupport();
+        ApplyDrive(throttle, forwardSpeed, deltaTime);
+
+        float frontShare = rearAxleOffset / (frontAxleOffset + rearAxleOffset);
+        frontGripUsage = ApplyAxleGrip(frontAxleOffset, steerAngle, handling.frontGripG * frontGrip, frontShare);
+        rearGripUsage = ApplyAxleGrip(-rearAxleOffset, 0f, handling.rearGripG * rearGrip, 1f - frontShare);
+    }
+
+    private void ProbeGround()
+    {
+        float probeLength = handling.rideHeight + handling.groundProbeExtra;
+        grounded = Physics.Raycast(
+            transform.position,
+            -transform.up,
+            out RaycastHit hit,
+            probeLength,
+            groundMask,
+            QueryTriggerInteraction.Ignore
+        );
+        groundDistance = grounded ? hit.distance : probeLength;
+        groundNormal = grounded ? hit.normal : Vector3.up;
+    }
+
+    private void UpdateSteering(float forwardSpeed, float deltaTime)
+    {
+        float fade = Mathf.Clamp01(Mathf.Abs(forwardSpeed) * MpsToKph / Mathf.Max(1f, handling.steerFadeSpeedKph));
+        float steerFactor = Mathf.Lerp(1f, handling.highSpeedSteerFactor, fade);
+        float targetAngle = input.Steer * handling.maxSteerAngle * steerFactor;
+        steerAngle = Mathf.MoveTowards(steerAngle, targetAngle, handling.steerResponse * handling.maxSteerAngle * deltaTime);
+    }
+
+    private void UpdateReverse(float throttle, float forwardSpeed)
+    {
+        if (!inReverse && input.Brake > 0.1f && forwardSpeed < 0.5f)
+        {
+            inReverse = true;
+        }
+        else if (inReverse && throttle > 0.1f && forwardSpeed > -0.5f)
+        {
+            inReverse = false;
         }
     }
 
-    private void SimulateWheel(Wheel wheel)
+    private void UpdateOverdrive(bool overdrive, float deltaTime)
     {
-        if (wheel.anchor == null)
+        float rate = overdrive ? handling.overdriveRampUpSpeed : handling.overdriveRampDownSpeed;
+        overdriveFactor = Mathf.MoveTowards(overdriveFactor, overdrive ? 1f : 0f, rate * deltaTime);
+
+        float heatRate = overdrive ? handling.heatRiseRate : handling.heatFallRate;
+        heat01 = Mathf.MoveTowards(heat01, overdrive ? 1f : 0f, heatRate * deltaTime);
+    }
+
+    private void UpdateGrip(bool overdrive, float deltaTime)
+    {
+        bool steering = Mathf.Abs(input.Steer) > handling.steeringThreshold;
+        float frontTarget = steering && input.Throttle > 0.5f && !overdrive ? handling.frontGripUnderThrottle : 1f;
+        float rearTarget = steering && overdrive ? handling.rearGripInOverdrive : 1f;
+
+        frontGrip = Mathf.MoveTowards(frontGrip, frontTarget, deltaTime / Mathf.Max(0.01f, handling.frontGripResponseTime));
+        rearGrip = Mathf.MoveTowards(rearGrip, rearTarget, deltaTime / Mathf.Max(0.01f, handling.rearGripResponseTime));
+
+        if (input.Handbrake)
         {
-            return;
+            rearGrip = Mathf.Min(rearGrip, handling.handbrakeRearGrip);
+        }
+    }
+
+    private void ApplySupport()
+    {
+        float compression = handling.rideHeight - groundDistance;
+        float verticalSpeed = Vector3.Dot(rb.linearVelocity, transform.up);
+        float lift = compression * handling.supportStiffness - verticalSpeed * handling.supportDamping;
+        if (lift > 0f)
+        {
+            rb.AddForce(transform.up * lift, ForceMode.Acceleration);
         }
 
-        float suspensionDistance = handling.suspensionRestLength + handling.wheelRadius;
-        Vector3 rayOrigin = wheel.anchor.position;
+        Vector3 angularVelocity = rb.angularVelocity;
+        Vector3 pitchRollRate = angularVelocity - transform.up * Vector3.Dot(angularVelocity, transform.up);
+        Vector3 align = Vector3.Cross(transform.up, groundNormal) * handling.alignStiffness - pitchRollRate * handling.alignDamping;
+        rb.AddTorque(align, ForceMode.Acceleration);
+    }
 
-        if (!Physics.Raycast(rayOrigin, -transform.up, out RaycastHit hit, suspensionDistance, groundMask, QueryTriggerInteraction.Ignore))
+    private void ApplyDrive(float throttle, float forwardSpeed, float deltaTime)
+    {
+        float speed = Mathf.Abs(forwardSpeed);
+        float push;
+        if (inReverse)
         {
-            ResetWheelToUngroundedState(wheel, rayOrigin, suspensionDistance);
-            return;
-        }
-
-        wheel.grounded = true;
-        groundedWheels++;
-        if (wheel.axle == Axle.Front)
-        {
-            groundedFrontWheels++;
-        }
-        int rearGroundedCount = GetRearGroundedCountNow();
-
-        float wheelTravel = hit.distance - handling.wheelRadius;
-        float springLengthNow = Mathf.Clamp(wheelTravel, 0f, handling.suspensionRestLength);
-        float compression = handling.suspensionRestLength - springLengthNow;
-        float springVelocity = (wheel.springLength - springLengthNow) / Time.fixedDeltaTime;
-        springVelocity = Mathf.Clamp(springVelocity, -handling.maxSuspensionVelocity, handling.maxSuspensionVelocity);
-        float springForce = compression * handling.springStrength + springVelocity * handling.damperStrength;
-        float staticWheelLoad = rb.mass * Physics.gravity.magnitude * 0.25f;
-        float maxSpringForce = staticWheelLoad * handling.maxSuspensionLoadFactor;
-
-        wheel.springLength = springLengthNow;
-        wheel.springVelocity = springVelocity;
-        wheel.springForce = Mathf.Clamp(springForce, 0f, maxSpringForce);
-        if (wheel.axle == Axle.Rear && rearGroundedCount == 1)
-        {
-            wheel.springForce *= handling.rearSpringForceWhenSingleRearWheelGrounded;
-        }
-
-        rb.AddForceAtPosition(transform.up * wheel.springForce, hit.point, ForceMode.Force);
-
-        Vector3 forward = wheel.axle == Axle.Front
-            ? Quaternion.AngleAxis(steerAngle, transform.up) * transform.forward
-            : transform.forward;
-        Vector3 right = Vector3.Cross(transform.up, forward).normalized;
-        Vector3 pointVelocity = rb.GetPointVelocity(hit.point);
-
-        float forwardSpeed = Vector3.Dot(pointVelocity, forward);
-        float lateralSpeed = Vector3.Dot(pointVelocity, right);
-
-        float driveInput = inReverse ? input.Brake : input.Throttle;
-        float brakeInput = inReverse ? input.Throttle : input.Brake;
-        float driveDirection = inReverse ? -1f : 1f;
-        float handbrakeInput = input.Handbrake ? 1f : 0f;
-
-        // --- Lateral force via slip curve ---
-        float lateralGrip = wheel.axle == Axle.Front ? handling.frontLateralGrip : handling.rearLateralGrip;
-        if (wheel.axle == Axle.Rear && handbrakeInput > 0f)
-        {
-            lateralGrip *= handling.rearGripWhileHandbrake;
-        }
-        if (wheel.axle == Axle.Rear && rearGroundedCount == 1)
-        {
-            lateralGrip *= handling.rearGripWhenSingleRearWheelGrounded;
-        }
-        if (wheel.axle == Axle.Rear && groundedFrontWheels == 0)
-        {
-            lateralGrip *= handling.rearGripWhenFrontAirborne;
-        }
-
-        float absLateralSlip = Mathf.Abs(lateralSpeed);
-        float lateralSlipNormalized = absLateralSlip * handling.lateralSlipScale;
-        float lateralGripFactor = WheelForceModel.EvaluateSlipCurve(handling.lateralSlipCurve, lateralSlipNormalized);
-        float lateralForce = -Mathf.Sign(lateralSpeed) * lateralGripFactor * lateralGrip * wheel.springForce;
-
-        // --- Longitudinal force (drive + brake) ---
-        float driveForce = 0f;
-        float engineBrakingForce = 0f;
-        if (wheel.axle == Axle.Rear)
-        {
-            float rearBoostMultiplier = 1f + boostFactor * (handling.boostForceMultiplier - 1f);
-            driveForce = driveDirection * driveInput * baseDriveForceNow * rearBoostMultiplier * handling.rearDriveBias * 0.5f;
-            engineBrakingForce = baseEngineBrakingForceNow * handling.rearDriveBias * 0.5f;
-            if (rearGroundedCount == 1)
-            {
-                driveForce *= handling.rearDriveWhenSingleRearWheelGrounded;
-            }
-            if (groundedFrontWheels == 0)
-            {
-                driveForce *= handling.rearDriveWhenFrontAirborne;
-            }
+            push = speed < handling.reverseMaxSpeedKph / MpsToKph ? -handling.reverseAcceleration * input.Brake : 0f;
         }
         else
         {
-            driveForce = driveDirection * driveInput * baseDriveForceNow * (1f - handling.rearDriveBias) * 0.5f;
-            engineBrakingForce = baseEngineBrakingForceNow * (1f - handling.rearDriveBias) * 0.5f;
+            float heatPower = Mathf.Lerp(1f, handling.powerAtMaxHeat, Mathf.InverseLerp(handling.heatTaperStart, 1f, heat01));
+            push = handling.baseAcceleration * Mathf.Lerp(1f, handling.overdrivePowerMultiplier, overdriveFactor) * heatPower * throttle;
         }
 
-        float handbrakeAxleBias = wheel.axle == Axle.Rear ? handling.handbrakeRearBias : (1f - handling.handbrakeRearBias);
-        float handbrakeForce = handbrakeInput * handling.handbrakeForce * handbrakeAxleBias;
-        float brakeForce = brakeInput * handling.maxBrakeForce + handbrakeForce;
-        float longitudinalForce = driveForce - Mathf.Sign(forwardSpeed) * brakeForce;
-        if (Mathf.Abs(forwardSpeed) > 0.1f && driveInput <= 0.01f && brakeInput <= 0.01f && handbrakeInput <= 0.01f)
-        {
-            longitudinalForce -= Mathf.Sign(forwardSpeed) * engineBrakingForce;
-        }
+        float speed01 = speed / Mathf.Max(1f, handling.maxSpeedKph / MpsToKph);
+        float brake = inReverse ? throttle : input.Brake;
+        float slowdown = handling.rollingDeceleration
+            + handling.baseAcceleration * speed01 * speed01
+            + brake * handling.brakeDeceleration;
+        // Never let slowdown alone push the car past zero.
+        slowdown = Mathf.Min(slowdown, speed / deltaTime);
 
-        // --- Friction circle clamp ---
-        // When boosting, prioritise longitudinal force — lateral gets only the remaining budget.
-        // This makes boost actively reduce rear grip → oversteer.
-        Vector2 tireForce = new Vector2(lateralForce, longitudinalForce);
-        float maxTireForce = wheel.springForce * handling.tireFriction;
-        if (wheel.axle == Axle.Rear && rearGroundedCount == 1)
-        {
-            maxTireForce *= handling.rearTireForceCapWhenSingleRearWheelGrounded;
-        }
-        bool prioritizeLongitudinal = wheel.axle == Axle.Rear && boostFactor > 0.01f;
-        tireForce = WheelForceModel.ClampToFrictionCircle(tireForce, maxTireForce, prioritizeLongitudinal, boostFactor);
-
-        Vector3 finalForce = right * tireForce.x + forward * tireForce.y;
-        rb.AddForceAtPosition(finalForce, hit.point, ForceMode.Force);
-
-        wheel.lastLateralForce = tireForce.x;
-        wheel.lastLongitudinalForce = tireForce.y;
-        wheel.lastMaxTireForce = maxTireForce;
-        wheel.lastAppliedForceWorld = finalForce;
-        wheel.lastContactPoint = hit.point;
-        wheel.lastContactNormal = hit.normal;
-        wheel.lastForward = forward;
-        wheel.lastRight = right;
+        rb.AddForce(transform.forward * (push - Mathf.Sign(forwardSpeed) * slowdown), ForceMode.Acceleration);
     }
 
-    private void ResetWheelToUngroundedState(Wheel wheel, Vector3 rayOrigin, float suspensionDistance)
+    // Pushes the axle sideways against its slip, up to the axle's grip limit.
+    // Returns demand / limit (> 1 means the axle is sliding).
+    private float ApplyAxleGrip(float axleOffset, float steerDegrees, float gripG, float massShare)
     {
-        wheel.grounded = false;
-        wheel.springForce = 0f;
-        wheel.springLength = handling.suspensionRestLength;
-        wheel.springVelocity = 0f;
-        wheel.lastLateralForce = 0f;
-        wheel.lastLongitudinalForce = 0f;
-        wheel.lastMaxTireForce = 0f;
-        wheel.lastAppliedForceWorld = Vector3.zero;
-        wheel.lastContactPoint = rayOrigin - transform.up * suspensionDistance;
-        wheel.lastContactNormal = transform.up;
-        wheel.lastForward = transform.forward;
-        wheel.lastRight = transform.right;
-    }
+        Vector3 axlePoint = rb.worldCenterOfMass + transform.forward * axleOffset;
+        Vector3 wheelRight = Quaternion.AngleAxis(steerDegrees, transform.up) * transform.right;
+        float slipSpeed = Vector3.Dot(rb.GetPointVelocity(axlePoint), wheelRight);
 
-    private void ApplyAntiRoll(Wheel leftWheel, Wheel rightWheel)
-    {
-        if (handling.antiRollStiffness <= 0f)
+        float axleMass = rb.mass * massShare;
+        float wantedForce = -slipSpeed * handling.gripStiffness * axleMass;
+        float maxForce = gripG * Physics.gravity.magnitude * axleMass;
+        if (maxForce <= 0f)
         {
-            return;
+            return 0f;
         }
 
-        if (!leftWheel.grounded || !rightWheel.grounded)
-        {
-            return;
-        }
-
-        float leftTravel = GetSuspensionTravel01(leftWheel);
-        float rightTravel = GetSuspensionTravel01(rightWheel);
-        float antiRollForce = (leftTravel - rightTravel) * handling.antiRollStiffness;
-
-        if (leftWheel.anchor != null)
-        {
-            rb.AddForceAtPosition(-transform.up * antiRollForce, leftWheel.anchor.position, ForceMode.Force);
-        }
-
-        if (rightWheel.anchor != null)
-        {
-            rb.AddForceAtPosition(transform.up * antiRollForce, rightWheel.anchor.position, ForceMode.Force);
-        }
-    }
-
-    private float GetSuspensionTravel01(Wheel wheel)
-    {
-        if (!wheel.grounded || handling.suspensionRestLength <= 0.001f)
-        {
-            return 1f;
-        }
-
-        return Mathf.Clamp01(wheel.springLength / handling.suspensionRestLength);
-    }
-
-    private void ApplyPassiveResistance()
-    {
-        Vector3 velocity = rb.linearVelocity;
-        float speed = velocity.magnitude;
-        if (speed < 0.001f)
-        {
-            return;
-        }
-
-        if (speed < 0.05f && input.Throttle <= 0.02f && input.Brake <= 0.02f)
-        {
-            rb.linearVelocity = Vector3.zero;
-            return;
-        }
-
-        Vector3 dragDirection = -velocity.normalized;
-        float resistance = handling.rollingResistance + handling.aerodynamicDrag * speed * speed;
-        rb.AddForce(dragDirection * resistance, ForceMode.Force);
-    }
-
-
-    private void ApplyAngularDamping()
-    {
-        Vector3 localAngularVelocity = transform.InverseTransformDirection(rb.angularVelocity);
-        localAngularVelocity.y *= 1f / (1f + handling.yawDamping * Time.fixedDeltaTime);
-        localAngularVelocity.z *= 1f / (1f + handling.rollDamping * Time.fixedDeltaTime);
-        rb.angularVelocity = transform.TransformDirection(localAngularVelocity);
-    }
-
-    private void ApplyStraighteningAssist()
-    {
-        if (Mathf.Abs(input.Steer) > handling.straighteningSteerThreshold)
-        {
-            nearZeroSteerTime = 0f;
-            return;
-        }
-
-        nearZeroSteerTime += Time.fixedDeltaTime;
-        if (nearZeroSteerTime < handling.straighteningActivationDelay)
-        {
-            return;
-        }
-
-        Vector3 localVelocity = transform.InverseTransformDirection(rb.linearVelocity);
-        localVelocity.x *= 1f / (1f + handling.straighteningLateralDamping * Time.fixedDeltaTime);
-        rb.linearVelocity = transform.TransformDirection(localVelocity);
-
-        Vector3 localAngularVelocity = transform.InverseTransformDirection(rb.angularVelocity);
-        localAngularVelocity.y *= 1f / (1f + handling.straighteningYawDamping * Time.fixedDeltaTime);
-        rb.angularVelocity = transform.TransformDirection(localAngularVelocity);
-    }
-
-    private void EnsureWheelAnchors()
-    {
-        // Approximate hot-hatch footprint: ~1.58m track, ~2.60m wheelbase.
-        EnsureAnchor(frontLeft, new Vector3(-0.79f, -0.36f, 1.30f));
-        EnsureAnchor(frontRight, new Vector3(0.79f, -0.36f, 1.30f));
-        EnsureAnchor(rearLeft, new Vector3(-0.79f, -0.36f, -1.30f));
-        EnsureAnchor(rearRight, new Vector3(0.79f, -0.36f, -1.30f));
-    }
-
-    private void EnsureAnchor(Wheel wheel, Vector3 localPosition)
-    {
-        if (wheel.anchor != null)
-        {
-            SetAnchorLocalPosition(wheel.anchor, localPosition);
-            return;
-        }
-
-        Transform existing = transform.Find(wheel.name);
-        if (existing != null)
-        {
-            wheel.anchor = existing;
-            SetAnchorLocalPosition(existing, localPosition);
-            return;
-        }
-
-        GameObject anchorObject = new GameObject(wheel.name);
-        anchorObject.transform.SetParent(transform, false);
-        SetAnchorLocalPosition(anchorObject.transform, localPosition);
-        anchorObject.transform.localRotation = Quaternion.identity;
-
-        wheel.anchor = anchorObject.transform;
-    }
-
-    private void SetAnchorLocalPosition(Transform anchor, Vector3 desiredLocalPosition)
-    {
-        Vector3 scale = transform.localScale;
-        scale.x = Mathf.Abs(scale.x) < 0.0001f ? 1f : scale.x;
-        scale.y = Mathf.Abs(scale.y) < 0.0001f ? 1f : scale.y;
-        scale.z = Mathf.Abs(scale.z) < 0.0001f ? 1f : scale.z;
-
-        anchor.localPosition = new Vector3(
-            desiredLocalPosition.x / scale.x,
-            desiredLocalPosition.y / scale.y,
-            desiredLocalPosition.z / scale.z
-        );
+        rb.AddForceAtPosition(wheelRight * Mathf.Clamp(wantedForce, -maxForce, maxForce), axlePoint, ForceMode.Force);
+        return Mathf.Abs(wantedForce) / maxForce;
     }
 
     private float GetDriftAngle()
     {
-        if (rb == null) return 0f;
+        if (rb == null)
+        {
+            return 0f;
+        }
+
         Vector3 velocity = rb.linearVelocity;
         velocity.y = 0f;
-        if (velocity.sqrMagnitude < 1f) return 0f;
+        if (velocity.sqrMagnitude < 1f)
+        {
+            return 0f;
+        }
+
         Vector3 flatForward = transform.forward;
         flatForward.y = 0f;
-        flatForward.Normalize();
-        float angle = Vector3.SignedAngle(flatForward, velocity.normalized, Vector3.up);
-        return angle;
+        return Vector3.SignedAngle(flatForward.normalized, velocity.normalized, Vector3.up);
     }
 
     private void OnDrawGizmosSelected()
@@ -496,134 +235,7 @@ public class CarController : MonoBehaviour
             return;
         }
 
-        Wheel[] gizmoWheels = { frontLeft, frontRight, rearLeft, rearRight };
-        Gizmos.color = Color.yellow;
-
-        foreach (Wheel wheel in gizmoWheels)
-        {
-            if (wheel.anchor == null)
-            {
-                continue;
-            }
-
-            Vector3 start = wheel.anchor.position;
-            Vector3 end = start - transform.up * (handling.suspensionRestLength + handling.wheelRadius);
-            Gizmos.DrawLine(start, end);
-            Gizmos.DrawWireSphere(end, handling.wheelRadius);
-        }
-    }
-
-    public bool TryGetWheelVisualState(int wheelIndex, out WheelVisualState state)
-    {
-        state = default;
-        if (wheels == null || handling == null)
-        {
-            return false;
-        }
-
-        if (wheelIndex < 0 || wheelIndex >= wheels.Length)
-        {
-            return false;
-        }
-
-        Wheel wheel = wheels[wheelIndex];
-        if (wheel.anchor == null)
-        {
-            return false;
-        }
-
-        Vector3 forward = wheel.axle == Axle.Front
-            ? Quaternion.AngleAxis(steerAngle, transform.up) * transform.forward
-            : transform.forward;
-
-        state = new WheelVisualState
-        {
-            AnchorPosition = wheel.anchor.position,
-            SuspensionUp = transform.up,
-            Forward = forward.normalized,
-            SuspensionLength = wheel.springLength,
-            Radius = handling.wheelRadius,
-            SteerAngleDegrees = wheel.axle == Axle.Front ? steerAngle : 0f,
-            Grounded = wheel.grounded
-        };
-
-        return true;
-    }
-
-    public bool TryGetWheelTelemetry(int wheelIndex, out WheelTelemetry telemetry)
-    {
-        telemetry = default;
-        if (wheels == null || wheelIndex < 0 || wheelIndex >= wheels.Length)
-        {
-            return false;
-        }
-
-        Wheel wheel = wheels[wheelIndex];
-        telemetry = new WheelTelemetry
-        {
-            Name = wheel.name,
-            Grounded = wheel.grounded,
-            SpringForce = wheel.springForce,
-            LateralForce = wheel.lastLateralForce,
-            LongitudinalForce = wheel.lastLongitudinalForce,
-            MaxTireForce = wheel.lastMaxTireForce,
-            AppliedForceWorld = wheel.lastAppliedForceWorld,
-            ContactPoint = wheel.lastContactPoint,
-            ContactNormal = wheel.lastContactNormal,
-            Forward = wheel.lastForward,
-            Right = wheel.lastRight
-        };
-
-        return true;
-    }
-
-    private int GetRearGroundedCountNow()
-    {
-        float suspensionDistance = handling.suspensionRestLength + handling.wheelRadius;
-        int count = 0;
-        if (IsAnchorGrounded(rearLeft.anchor, suspensionDistance))
-        {
-            count++;
-        }
-
-        if (IsAnchorGrounded(rearRight.anchor, suspensionDistance))
-        {
-            count++;
-        }
-
-        return count;
-    }
-
-    private int GetFrontGroundedCountNow()
-    {
-        float suspensionDistance = handling.suspensionRestLength + handling.wheelRadius;
-        int count = 0;
-        if (IsAnchorGrounded(frontLeft.anchor, suspensionDistance))
-        {
-            count++;
-        }
-
-        if (IsAnchorGrounded(frontRight.anchor, suspensionDistance))
-        {
-            count++;
-        }
-
-        return count;
-    }
-
-    private bool IsAnchorGrounded(Transform anchor, float suspensionDistance)
-    {
-        if (anchor == null)
-        {
-            return false;
-        }
-
-        return Physics.Raycast(
-            anchor.position,
-            -transform.up,
-            suspensionDistance,
-            groundMask,
-            QueryTriggerInteraction.Ignore
-        );
+        Gizmos.color = grounded ? Color.green : Color.red;
+        Gizmos.DrawLine(transform.position, transform.position - transform.up * (handling.rideHeight + handling.groundProbeExtra));
     }
 }
