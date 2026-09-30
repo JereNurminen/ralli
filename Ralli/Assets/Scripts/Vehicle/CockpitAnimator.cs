@@ -47,10 +47,12 @@ public class CockpitAnimator : MonoBehaviour
     [Range(0f, 1f)] [SerializeField] private float idleRpm01 = 0.15f;
 
     [Header("Heat Gauge (fuel needle)")]
-    [SerializeField] private Needle heatGauge = new Needle { partName = "Gauge_Fuel_Needle", sweepDegrees = 90f };
+    [SerializeField] private Needle heatGauge = new Needle { partName = "Gauge_Fuel_Needle", sweepDegrees = -90f };
 
     [Header("Smoothing")]
     [SerializeField] private float needleSmoothTime = 0.08f;
+    [Tooltip("Fastest a needle can swing (degrees per second). Stops the rev needle snapping on shifts.")]
+    [SerializeField] private float needleMaxDegreesPerSecond = 180f;
 
     private CarController car;
     private CarInputReader input;
@@ -131,7 +133,8 @@ public class CockpitAnimator : MonoBehaviour
             return;
         }
 
-        needle.value01 = Mathf.SmoothDamp(needle.value01, Mathf.Clamp01(target01), ref needle.velocity, needleSmoothTime);
+        float maxSpeed01 = needleMaxDegreesPerSecond / Mathf.Max(1f, Mathf.Abs(needle.sweepDegrees));
+        needle.value01 = Mathf.SmoothDamp(needle.value01, Mathf.Clamp01(target01), ref needle.velocity, needleSmoothTime, maxSpeed01);
         needle.part.localRotation = needle.restRotation * Quaternion.AngleAxis(needle.value01 * needle.sweepDegrees, rotationAxis);
     }
 
