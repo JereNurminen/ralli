@@ -27,6 +27,7 @@ public class CarController : MonoBehaviour
     private bool inReverse;
     private float overdriveFactor;
     private float heat01;
+    private float engineRpm01;
     private float overdriveHeldTime;
     private float exitBoostTimer;
     private float frontGrip = 1f;
@@ -40,6 +41,8 @@ public class CarController : MonoBehaviour
     public float SteerAngleDegrees => steerAngle;
     public float OverdriveFactor => overdriveFactor;
     public float Heat01 => heat01;
+    // Fake engine RPM, 0 = off, 1 = limiter. Drives engine sound and the rev counter.
+    public float EngineRpm01 => engineRpm01;
     public float ExitBoost01 => handling == null || handling.exitBoostDuration <= 0f ? 0f : exitBoostTimer / handling.exitBoostDuration;
     public float FrontGrip01 => frontGrip;
     public float RearGrip01 => rearGrip;
@@ -77,6 +80,7 @@ public class CarController : MonoBehaviour
         UpdateReverse(throttle, forwardSpeed);
         UpdateOverdrive(overdrive, deltaTime);
         UpdateGrip(overdrive, deltaTime);
+        UpdateEngineRpm(throttle, forwardSpeed, deltaTime);
 
         if (!grounded)
         {
@@ -158,6 +162,40 @@ public class CarController : MonoBehaviour
             overdriveHeldTime = 0f;
             exitBoostTimer = Mathf.Max(0f, exitBoostTimer - deltaTime);
         }
+    }
+
+    // No real drivetrain: on the ground RPM follows speed through fake gears; in the air the
+    // wheels spin free, so throttle sends it to the limiter until the car lands again.
+    private void UpdateEngineRpm(float throttle, float forwardSpeed, float deltaTime)
+    {
+        float target;
+        float riseRate = handling.rpmRiseRate;
+        if (grounded)
+        {
+            target = GetGearRpm01(Mathf.Abs(forwardSpeed) * MpsToKph) + throttle * handling.throttleRpmBump;
+        }
+        else
+        {
+            target = throttle > 0.1f ? 1f : handling.idleRpm01;
+            riseRate = handling.airborneRpmRiseRate;
+        }
+
+        float rate = target > engineRpm01 ? riseRate : handling.rpmFallRate;
+        engineRpm01 = Mathf.MoveTowards(engineRpm01, Mathf.Clamp01(target), rate * deltaTime);
+    }
+
+    // Revs climb through each gear's speed span, then drop at the "shift".
+    private float GetGearRpm01(float speedKph)
+    {
+        if (speedKph < 3f)
+        {
+            return handling.idleRpm01;
+        }
+
+        float span = Mathf.Max(1f, handling.gearSpanKph);
+        int gear = Mathf.Min(Mathf.FloorToInt(speedKph / span), Mathf.Max(1, handling.gearCount) - 1);
+        float inGear = Mathf.Clamp01((speedKph - gear * span) / span);
+        return Mathf.Lerp(handling.idleRpm01 + 0.2f, 0.9f, inGear);
     }
 
     private void UpdateGrip(bool overdrive, float deltaTime)
