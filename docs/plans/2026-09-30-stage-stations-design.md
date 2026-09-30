@@ -26,6 +26,11 @@ in the woods past the finish station.
 - Stations cannot be skipped. The stop is where the next stage is generated and the day cycles.
   (Later: route choice, biome changes, shop.)
 - **Each stage is a fresh generation** (scene reload), not one continuous road.
+- **Every stage starts heading north.** The road leaves `s = 0` pointing world north (+Z), so the
+  start station always faces the same way.
+- **One seed per run.** Each stage's road (curves and elevation) is derived from the run seed and
+  the stage number, so a run seed always reproduces the same sequence of stage roads. Trees and
+  traffic are not seeded and differ every time.
 
 ## Stage road layout
 
@@ -78,8 +83,8 @@ Contents:
 - The station model, with colliders on pumps/pillars.
 - `FinishZone`: a `BoxCollider` (trigger) covering the lot, hand-tuned. Only enabled on the finish
   station.
-- `StartSpot`: a transform where the car is placed on the start station (next to a pump, facing the
-  exit onto the road).
+- `StartSpot`: a transform where the car is placed on the start station. Placed by hand in the
+  prefab (the prefab ships with a rough placeholder position).
 
 ### Arrival: fast stop
 
@@ -133,8 +138,12 @@ A static class (survives scene reloads) holding:
 - `policeChaseSpeedKph`
 
 Road material joins once the surface system exists. Settings are applied to **runtime copies** of
-the config assets (`Instantiate`), never to the assets themselves. The road seed is
-`RunSeed + StageIndex * 7919`.
+the config assets (`Instantiate`), never to the assets themselves.
+
+**Seeding:** the road seed is `RunSeed + StageIndex * 7919` and drives only the road's curves,
+designed-piece choice and elevation (including the terrain heightfield it follows). Tree placement
+and traffic use unseeded randomness. The road's first sample always heads world north (+Z),
+independent of the `RoadStream` object's rotation.
 
 ### StageDirector
 
@@ -189,5 +198,7 @@ No unit tests (project preference). Compile check after each step, then playtest
    finishes.
 4. Entering the lot stops the car within about a second; the card shows stage, lead, score.
 5. A close police van passes in the left lane, runs off the road end into the trees and vanishes.
-6. Next stage: new road, next lighting preset, score carried over, police appear after the lead.
-7. Being caught shows the Caught card; continuing starts over at stage 1.
+6. Next stage: new road heading north, next lighting preset, score carried over, police appear
+   after the lead.
+7. Same run seed (set by hand) twice: identical stage roads and elevation; trees and traffic differ.
+8. Being caught shows the Caught card; continuing starts over at stage 1.
