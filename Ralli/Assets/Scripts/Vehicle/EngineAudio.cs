@@ -62,6 +62,7 @@ public class EngineAudio : MonoBehaviour
     private float fadeIn;
     private float punch;
     private bool wasOverdriving;
+    private AudioSource startupSource;
 
     private void Start()
     {
@@ -76,11 +77,34 @@ public class EngineAudio : MonoBehaviour
             layer.offSource = layer.offThrottle != null ? CreateLoop(root, layer.offThrottle) : null;
         }
 
+        startupSource = root.AddComponent<AudioSource>();
+        startupSource.outputAudioMixerGroup = mixerGroup;
+        startupSource.spatialBlend = 0f;
+        startupSource.playOnAwake = false;
+
+        // Silent until the engine is turned on.
+        if (car.EngineRunning)
+        {
+            PlayStartup();
+        }
+        else
+        {
+            car.EngineStarted += PlayStartup;
+        }
+    }
+
+    private void OnDestroy()
+    {
+        if (car != null)
+        {
+            car.EngineStarted -= PlayStartup;
+        }
+    }
+
+    private void PlayStartup()
+    {
         if (startup != null)
         {
-            AudioSource startupSource = root.AddComponent<AudioSource>();
-            startupSource.outputAudioMixerGroup = mixerGroup;
-            startupSource.spatialBlend = 0f;
             startupSource.PlayOneShot(startup, volume);
         }
     }
@@ -93,7 +117,7 @@ public class EngineAudio : MonoBehaviour
         }
 
         float deltaTime = Time.deltaTime;
-        fadeIn = Mathf.MoveTowards(fadeIn, 1f, deltaTime / Mathf.Max(0.01f, fadeInTime));
+        fadeIn = Mathf.MoveTowards(fadeIn, car.EngineRunning ? 1f : 0f, deltaTime / Mathf.Max(0.01f, fadeInTime));
         throttleBlend = Mathf.MoveTowards(throttleBlend, input.Throttle, deltaTime / Mathf.Max(0.01f, throttleBlendTime));
 
         float rpm = car.EngineRpm01;

@@ -52,6 +52,12 @@ public class CarHandlingConfig : ScriptableObject
     [Tooltip("Extra grip on both axles at the start of the exit boost (0.4 = +40%).")]
     public float exitBoostGrip = 0.4f;
 
+    [Header("Ignition")]
+    [Tooltip("The car starts switched off; the first throttle press turns it on.")]
+    public bool startWithEngineOff = true;
+    [Tooltip("Seconds after ignition before the car can drive (lets the startup sound play).")]
+    public float ignitionDriveDelay = 0.8f;
+
     [Header("Fake Engine (RPM for sound and rev counter)")]
     [Tooltip("Speed range covered by each fake gear (km/h).")]
     public float gearSpanKph = 45f;
