@@ -17,11 +17,18 @@ public class DriverArms : MonoBehaviour
         public Transform hand;
         public Quaternion upperRest;
         public Quaternion lowerRest;
-        public Quaternion handRest;
         public Transform[] fingers;
         public Quaternion[] fingerRest;
         public bool[] isThumb;
-        public Vector3 wheelGripLocal;
+        // Hand's own frame, measured from the rig: wrist→middle finger, and pinky→index (thumb side).
+        public Vector3 fingerDirLocal;
+        public Vector3 thumbSideLocal;
+        public float handLength;
+        // Grip on the steering wheel, stored in the wheel's space so it turns with the wheel.
+        public Vector3 rimLocal;
+        public Vector3 inwardLocal;
+        public Vector3 fingerAimLocal;
+        public Vector3 thumbUpLocal;
     }
 
     private static readonly string[] FingerNames = { "index", "middle", "ring", "pinky", "thumb" };
@@ -44,9 +51,15 @@ public class DriverArms : MonoBehaviour
     [SerializeField] private float gripAngle = 15f;
     [Tooltip("Moves grip points toward the driver so hands sit on the rim, not inside it (m).")]
     [SerializeField] private float gripBackOffset = 0.02f;
+    [Tooltip("Wrist sits this far outside the rim, so the palm wraps it rather than the wrist (m).")]
+    [SerializeField] private float gripOutset = 0.03f;
+    [Tooltip("How much the fingers angle in toward the wheel center (0 = straight forward).")]
+    [SerializeField] private float fingerInwardTilt = 0.35f;
+    [Tooltip("Fraction of hand length the wrist sits behind the rim, so the palm lands on it.")]
+    [Range(0f, 1f)] [SerializeField] private float palmFraction = 0.5f;
 
     [Header("Hands")]
-    [Tooltip("Extra wrist rotation (local Euler) to line the palm up with the rim.")]
+    [Tooltip("Extra wrist rotation (local Euler) on top of the computed grip. Usually leave at zero.")]
     [SerializeField] private Vector3 leftHandRotationOffset;
     [SerializeField] private Vector3 rightHandRotationOffset;
     [Tooltip("Finger curl around each finger bone's local X. Flip the sign if fingers bend backwards.")]
@@ -98,12 +111,12 @@ public class DriverArms : MonoBehaviour
         {
             if (leftArm != null)
             {
-                leftArm.wheelGripLocal = wheel.InverseTransformPoint(GetRestGripPoint(wheel, -1f));
+                SetupWheelGrip(leftArm, wheel, -1f);
             }
 
             if (rightArm != null)
             {
-                rightArm.wheelGripLocal = wheel.InverseTransformPoint(GetRestGripPoint(wheel, 1f));
+                SetupWheelGrip(rightArm, wheel, 1f);
             }
         }
     }
@@ -121,36 +134,69 @@ public class DriverArms : MonoBehaviour
 
         if (leftArm != null)
         {
-            PoseArm(leftArm, leftShoulder, -1f, wheel.TransformPoint(leftArm.wheelGripLocal), leftHandRotationOffset);
+            GetWheelGrip(leftArm, wheel, out Vector3 leftTarget, out Quaternion leftRotation);
+            PoseArm(leftArm, leftShoulder, -1f, leftTarget, leftRotation, leftHandRotationOffset);
         }
 
         if (rightArm != null)
         {
-            Vector3 target = wheel.TransformPoint(rightArm.wheelGripLocal);
+            GetWheelGrip(rightArm, wheel, out Vector3 target, out Quaternion rotation);
             if (handbrakeBlend > 0f && handbrake != null)
             {
+                // Palm down on the lever, fingers forward.
+                Quaternion brakeRotation = GetHandRotation(rightArm, transform.forward, -transform.right);
                 Vector3 brakeGrip = handbrake.position + transform.TransformDirection(handbrakeGripOffset);
+                Vector3 brakeTarget = brakeGrip - transform.forward * (rightArm.handLength * palmFraction);
                 float t = handbrakeBlend * handbrakeBlend * (3f - 2f * handbrakeBlend);
-                target = Vector3.Lerp(target, brakeGrip, t);
+                target = Vector3.Lerp(target, brakeTarget, t);
+                rotation = Quaternion.Slerp(rotation, brakeRotation, t);
             }
 
-            PoseArm(rightArm, rightShoulder, 1f, target, rightHandRotationOffset);
+            PoseArm(rightArm, rightShoulder, 1f, target, rotation, rightHandRotationOffset);
         }
     }
 
-    // Rest grip point in world space: on the rim, gripAngle above 9 (side -1) or 3 (side +1) o'clock.
-    private Vector3 GetRestGripPoint(Transform wheel, float side)
+    // 9-and-3 grip, gripAngle above horizontal: palm faces the wheel center, fingers point
+    // forward (tilted inward) around the rim, thumb up along the rim.
+    private void SetupWheelGrip(Arm arm, Transform wheel, float side)
     {
         Vector3 shoulderMid = transform.TransformPoint((leftShoulder + rightShoulder) * 0.5f);
         Vector3 towardDriver = (shoulderMid - wheel.position).normalized;
         Vector3 right = Vector3.Cross(towardDriver, transform.up).normalized;
+        Vector3 up = Vector3.Cross(right, towardDriver).normalized;
 
         // Positive angle about towardDriver is clockwise as the driver sees it.
-        Vector3 spoke = Quaternion.AngleAxis(-side * gripAngle, towardDriver) * (right * side);
-        return wheel.position + spoke * wheelRadius + towardDriver * gripBackOffset;
+        Quaternion raise = Quaternion.AngleAxis(-side * gripAngle, towardDriver);
+        Vector3 spoke = raise * (right * side);
+        Vector3 rim = wheel.position + spoke * wheelRadius + towardDriver * gripBackOffset;
+        Vector3 inward = -spoke;
+        Vector3 fingerAim = (-towardDriver + inward * fingerInwardTilt).normalized;
+
+        arm.rimLocal = wheel.InverseTransformPoint(rim);
+        arm.inwardLocal = wheel.InverseTransformVector(inward);
+        arm.fingerAimLocal = wheel.InverseTransformVector(fingerAim);
+        arm.thumbUpLocal = wheel.InverseTransformVector(raise * up);
     }
 
-    private void PoseArm(Arm arm, Vector3 shoulderLocal, float side, Vector3 target, Vector3 handRotationOffset)
+    private void GetWheelGrip(Arm arm, Transform wheel, out Vector3 wristTarget, out Quaternion handRotation)
+    {
+        Vector3 rim = wheel.TransformPoint(arm.rimLocal);
+        Vector3 inward = wheel.TransformVector(arm.inwardLocal).normalized;
+        Vector3 aim = wheel.TransformVector(arm.fingerAimLocal).normalized;
+        Vector3 thumbUp = wheel.TransformVector(arm.thumbUpLocal).normalized;
+
+        wristTarget = rim - inward * gripOutset - aim * (arm.handLength * palmFraction);
+        handRotation = GetHandRotation(arm, aim, thumbUp);
+    }
+
+    // World rotation that points the hand's fingers along fingerAim with its thumb side toward thumbSide.
+    private static Quaternion GetHandRotation(Arm arm, Vector3 fingerAim, Vector3 thumbSide)
+    {
+        return Quaternion.LookRotation(fingerAim, thumbSide)
+               * Quaternion.Inverse(Quaternion.LookRotation(arm.fingerDirLocal, arm.thumbSideLocal));
+    }
+
+    private void PoseArm(Arm arm, Vector3 shoulderLocal, float side, Vector3 target, Quaternion handRotation, Vector3 handRotationOffset)
     {
         arm.upper.localRotation = arm.upperRest;
         arm.lower.localRotation = arm.lowerRest;
@@ -162,7 +208,7 @@ public class DriverArms : MonoBehaviour
         Vector3 pole = shoulderWorld + transform.TransformDirection(new Vector3(side * elbowPole.x, elbowPole.y, elbowPole.z));
         SolveTwoBoneIK(arm.upper, arm.lower, arm.hand, target, pole);
 
-        arm.hand.localRotation = arm.handRest * Quaternion.Euler(handRotationOffset);
+        arm.hand.rotation = handRotation * Quaternion.Euler(handRotationOffset);
         for (int i = 0; i < arm.fingers.Length; i++)
         {
             float curl = arm.isThumb[i] ? thumbCurlDegrees : fingerCurlDegrees;
@@ -229,7 +275,6 @@ public class DriverArms : MonoBehaviour
             hand = hand,
             upperRest = upper.localRotation,
             lowerRest = lower.localRotation,
-            handRest = hand.localRotation,
             fingers = fingers.ToArray(),
             isThumb = thumbs.ToArray(),
             fingerRest = new Quaternion[fingers.Count]
@@ -238,6 +283,22 @@ public class DriverArms : MonoBehaviour
         for (int i = 0; i < arm.fingers.Length; i++)
         {
             arm.fingerRest[i] = arm.fingers[i].localRotation;
+        }
+
+        Transform middle = FindDeep(root, $"finger_middle1.{suffix}");
+        Transform index = FindDeep(root, $"finger_index1.{suffix}");
+        Transform pinky = FindDeep(root, $"finger_pinky1.{suffix}");
+        if (middle != null && index != null && pinky != null)
+        {
+            arm.fingerDirLocal = hand.InverseTransformDirection(middle.position - hand.position).normalized;
+            arm.thumbSideLocal = hand.InverseTransformDirection(index.position - pinky.position).normalized;
+            arm.handLength = Vector3.Distance(hand.position, middle.position) * 2f;
+        }
+        else
+        {
+            arm.fingerDirLocal = Vector3.forward;
+            arm.thumbSideLocal = Vector3.up;
+            arm.handLength = 0.18f;
         }
 
         return arm;
