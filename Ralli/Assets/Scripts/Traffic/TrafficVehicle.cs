@@ -1,7 +1,8 @@
 using UnityEngine;
 
-// A traffic car. Follows its lane along the road (kinematic) until it touches the player or
-// another traffic car, then is released to regular physics for the rest of its life.
+// A traffic car. Follows its lane along the road (kinematic), keeping a gap to the car ahead in
+// its lane, until it touches the player or a wreck; then it is released to regular physics for
+// the rest of its life.
 public class TrafficVehicle : MonoBehaviour
 {
     private const float KphToMps = 1f / 3.6f;
@@ -25,11 +26,28 @@ public class TrafficVehicle : MonoBehaviour
     private float turnRateDegPerMeter;
     private bool isReleased;
     private bool isBraking;
+    private TrafficVehicle leader;
     private MeshRenderer debugMarker;
     private MaterialPropertyBlock debugMarkerBlock;
-    private readonly Collider[] overlapBuffer = new Collider[16];
 
     public float CurrentS => currentS;
+    public float Direction => direction;
+    public bool IsReleased => isReleased;
+
+    // The next car ahead in the same lane (set by the manager every step), or null.
+    public void SetLeader(TrafficVehicle carAhead)
+    {
+        leader = carAhead;
+    }
+
+    // Released cars leave their lane; keep their road position current (for culling) from where they are.
+    public void RefreshReleasedRoadPosition(float maxRoadDistance)
+    {
+        if (isReleased && road.TryGetNearestS(transform.position, maxRoadDistance, out float s))
+        {
+            currentS = s;
+        }
+    }
 
     private void Awake()
     {
@@ -65,12 +83,13 @@ public class TrafficVehicle : MonoBehaviour
             return;
         }
 
-        if (TryReleaseOnContact())
+        if (IsNearPlayer())
         {
+            Release();
             return;
         }
 
-        float desiredSpeed = targetSpeedMps * GetCornerSpeedFactor();
+        float desiredSpeed = Mathf.Min(targetSpeedMps * GetCornerSpeedFactor(), GetFollowSpeedLimit());
         isBraking = currentSpeedMps > desiredSpeed + 0.1f;
         float rate = Mathf.Max(0.1f, isBraking ? config.brakingMps2 : config.accelerationMps2);
         currentSpeedMps = Mathf.MoveTowards(currentSpeedMps, desiredSpeed, rate * deltaTime);
@@ -86,6 +105,21 @@ public class TrafficVehicle : MonoBehaviour
         float roadWidth = Mathf.Max(2f, road.GetRoadWidth());
         float usableWidth = Mathf.Max(1f, roadWidth - Mathf.Max(0f, config.laneShoulderInset) * 2f);
         return usableWidth * 0.25f * direction;
+    }
+
+    // Speed that holds a gap of minGap + timeGap * speed to the car ahead: closes in slower than
+    // the leader when too near, catches up when far. No limit without a leader.
+    private float GetFollowSpeedLimit()
+    {
+        if (leader == null || leader.isReleased)
+        {
+            return float.MaxValue;
+        }
+
+        float length = transform.localScale.z;
+        float gap = (leader.currentS - currentS) * direction - length;
+        float wantedGap = config.followMinGap + currentSpeedMps * config.followTimeGap;
+        return Mathf.Max(0f, leader.currentSpeedMps + (gap - wantedGap) * config.followGapGain);
     }
 
     private float GetCornerSpeedFactor()
@@ -126,25 +160,6 @@ public class TrafficVehicle : MonoBehaviour
         rb.MoveRotation(rotation);
     }
 
-    private bool TryReleaseOnContact()
-    {
-        if (IsNearPlayer())
-        {
-            Release();
-            return true;
-        }
-
-        TrafficVehicle other = FindTouchingTraffic();
-        if (other != null)
-        {
-            Release();
-            other.Release();
-            return true;
-        }
-
-        return false;
-    }
-
     // Released just before touching, so the crash is a proper physics collision.
     private bool IsNearPlayer()
     {
@@ -163,35 +178,6 @@ public class TrafficVehicle : MonoBehaviour
         Vector3 ownClosest = ownCollider.ClosestPoint(player.transform.position);
         Vector3 playerClosest = playerCollider.ClosestPoint(transform.position);
         return Vector3.Distance(ownClosest, playerClosest) < releaseDistance;
-    }
-
-    // Kinematic cars get no collision events with each other, so overlaps are checked by hand.
-    private TrafficVehicle FindTouchingTraffic()
-    {
-        if (ownCollider == null)
-        {
-            return null;
-        }
-
-        Bounds bounds = ownCollider.bounds;
-        int hitCount = Physics.OverlapBoxNonAlloc(bounds.center, bounds.extents * 1.02f, overlapBuffer, Quaternion.identity, ~0, QueryTriggerInteraction.Ignore);
-        for (int i = 0; i < hitCount; i++)
-        {
-            Collider other = overlapBuffer[i];
-            if (other == ownCollider || !other.TryGetComponent(out TrafficVehicle vehicle))
-            {
-                continue;
-            }
-
-            Vector3 ownClosest = ownCollider.ClosestPoint(other.bounds.center);
-            Vector3 otherClosest = other.ClosestPoint(transform.position);
-            if ((ownClosest - otherClosest).sqrMagnitude <= 0.0025f)
-            {
-                return vehicle;
-            }
-        }
-
-        return null;
     }
 
     private void OnCollisionEnter(Collision collision)

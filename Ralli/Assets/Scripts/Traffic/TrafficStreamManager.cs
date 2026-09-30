@@ -7,7 +7,12 @@ public class TrafficStreamManager : MonoBehaviour
     [SerializeField] private TrafficConfig config;
     [SerializeField] private Transform vehicleRoot;
 
+    private const float ReleasedRoadSearchDistance = 40f;
+    private static readonly System.Comparison<TrafficVehicle> ByRoadPosition = (a, b) => a.CurrentS.CompareTo(b.CurrentS);
+
     private readonly List<TrafficVehicle> vehicles = new List<TrafficVehicle>();
+    private readonly List<TrafficVehicle> forwardLane = new List<TrafficVehicle>();
+    private readonly List<TrafficVehicle> oncomingLane = new List<TrafficVehicle>();
     private readonly HashSet<int> spawnedChunks = new HashSet<int>();
     private CarController player;
     private MaterialPropertyBlock propertyBlock;
@@ -61,10 +66,40 @@ public class TrafficStreamManager : MonoBehaviour
 
     private void FixedUpdate()
     {
+        AssignLeaders();
         float deltaTime = Time.fixedDeltaTime;
         for (int i = 0; i < vehicles.Count; i++)
         {
             vehicles[i].Tick(deltaTime);
+        }
+    }
+
+    // Orders each lane's lane-following cars in travel order and points every car at the one ahead.
+    private void AssignLeaders()
+    {
+        forwardLane.Clear();
+        oncomingLane.Clear();
+        for (int i = 0; i < vehicles.Count; i++)
+        {
+            TrafficVehicle vehicle = vehicles[i];
+            if (!vehicle.IsReleased)
+            {
+                (vehicle.Direction > 0f ? forwardLane : oncomingLane).Add(vehicle);
+            }
+        }
+
+        forwardLane.Sort(ByRoadPosition);
+        oncomingLane.Sort(ByRoadPosition);
+        oncomingLane.Reverse();
+        LinkLeaders(forwardLane);
+        LinkLeaders(oncomingLane);
+    }
+
+    private static void LinkLeaders(List<TrafficVehicle> lane)
+    {
+        for (int i = 0; i < lane.Count; i++)
+        {
+            lane[i].SetLeader(i + 1 < lane.Count ? lane[i + 1] : null);
         }
     }
 
@@ -90,16 +125,24 @@ public class TrafficStreamManager : MonoBehaviour
         }
 
         System.Random rng = new System.Random((roadStream.GetSeed() * 83492791) ^ (chunkIndex * 19349663));
-        var forwardLane = new List<float>(count);
-        var oncomingLane = new List<float>(count);
+        var forwardSpawns = new List<float>(count);
+        var oncomingSpawns = new List<float>(count);
+        foreach (TrafficVehicle existing in vehicles)
+        {
+            if (!existing.IsReleased)
+            {
+                (existing.Direction > 0f ? forwardSpawns : oncomingSpawns).Add(existing.CurrentS);
+            }
+        }
         int created = 0;
         int attempts = count * 8;
         while (created < count && attempts-- > 0)
         {
             float s = Mathf.Lerp(startS + 3f, endS - 3f, (float)rng.NextDouble());
             bool forward = rng.NextDouble() < Mathf.Clamp01(config.sameDirectionLaneChance);
-            List<float> lane = forward ? forwardLane : oncomingLane;
-            if (!IsLaneSpacingValid(lane, s, Mathf.Max(2f, config.sameLaneMinSpacing)))
+            List<float> lane = forward ? forwardSpawns : oncomingSpawns;
+            if (Mathf.Abs(s - playerS) < config.minSpawnDistanceFromPlayer
+                || !IsLaneSpacingValid(lane, s, Mathf.Max(2f, config.sameLaneMinSpacing)))
             {
                 continue;
             }
@@ -185,6 +228,7 @@ public class TrafficStreamManager : MonoBehaviour
         for (int i = vehicles.Count - 1; i >= 0; i--)
         {
             TrafficVehicle vehicle = vehicles[i];
+            vehicle.RefreshReleasedRoadPosition(ReleasedRoadSearchDistance);
             int chunk = roadStream.GetChunkIndexForS(vehicle.CurrentS);
             if (chunk < minChunk || chunk > maxChunk)
             {
