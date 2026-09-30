@@ -21,9 +21,20 @@ public class LightingDirector : MonoBehaviour
 
     private static readonly int LightFalloffId = Shader.PropertyToID("_RalliLightFalloff");
 
-    public LightingPreset ActivePreset => presets != null && presets.Length > 0
-        ? presets[Mathf.Clamp(activePreset, 0, presets.Length - 1)]
-        : null;
+    private LightingPreset stagePreset;
+
+    public LightingPreset ActivePreset => stagePreset != null
+        ? stagePreset
+        : presets != null && presets.Length > 0
+            ? presets[Mathf.Clamp(activePreset, 0, presets.Length - 1)]
+            : null;
+
+    // Stage setup (play mode): light the stage with this preset instead of Active Preset.
+    public void UsePreset(LightingPreset preset)
+    {
+        stagePreset = preset;
+        Apply();
+    }
 
     public void SetPreset(int index)
     {

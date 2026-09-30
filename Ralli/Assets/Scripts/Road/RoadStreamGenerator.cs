@@ -269,7 +269,8 @@ public class RoadStreamGenerator : MonoBehaviour
 
     public IReadOnlyList<float> StationCentersS => stationCentersS;
     public bool HasRoadEnd => !float.IsPositiveInfinity(roadEndS);
-    public float RoadEndS => roadEndS;
+    // s of the road's last sample (infinity while endless).
+    public float RoadEndS => HasRoadEnd && sampleDistance > 0f ? MaxSampleIndex * sampleDistance : roadEndS;
 
     // Lots of all stations, generating the road up to them if needed.
     public IReadOnlyList<StationLot> GetStationLots()

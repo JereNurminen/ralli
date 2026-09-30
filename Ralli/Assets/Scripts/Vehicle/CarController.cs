@@ -43,6 +43,8 @@ public class CarController : MonoBehaviour
     private float rearGrip = 1f;
     private float frontGripUsage;
     private float rearGripUsage;
+    private bool assistedStop;
+    private float assistedStopDeceleration;
 
     public float SpeedMps => rb == null ? 0f : rb.linearVelocity.magnitude;
     public bool IsGrounded => grounded;
@@ -65,6 +67,16 @@ public class CarController : MonoBehaviour
 
     // Fired on a hard collision: speed change (m/s) and the world direction the car was pushed.
     public event System.Action<float, Vector3> Impact;
+
+    public bool IsAssistedStopping => assistedStop;
+
+    // Stage finish: takes the car out of the driver's hands and brakes it to a standstill at the
+    // given rate (m/s²), keeping it that way.
+    public void BeginAssistedStop(float deceleration)
+    {
+        assistedStop = true;
+        assistedStopDeceleration = deceleration;
+    }
 
     private void Awake()
     {
@@ -89,6 +101,12 @@ public class CarController : MonoBehaviour
 
         float deltaTime = Time.fixedDeltaTime;
         UpdateIgnition(deltaTime);
+        if (assistedStop)
+        {
+            driveEnabled = false;
+            ApplyAssistedStop(deltaTime);
+        }
+
         // Overdrive only works on top of held throttle; alone it does nothing.
         bool overdrive = driveEnabled && input.Overdrive && input.Throttle > 0.5f;
         float throttle = driveEnabled ? input.Throttle : 0f;
@@ -198,6 +216,16 @@ public class CarController : MonoBehaviour
         rb.AddForce(travel / speed * push, ForceMode.Acceleration);
     }
 
+    // Bleeds off horizontal speed and spin directly, so the stop is the same on any surface.
+    private void ApplyAssistedStop(float deltaTime)
+    {
+        Vector3 velocity = rb.linearVelocity;
+        Vector3 flat = new Vector3(velocity.x, 0f, velocity.z);
+        flat = Vector3.MoveTowards(flat, Vector3.zero, assistedStopDeceleration * deltaTime);
+        rb.linearVelocity = new Vector3(flat.x, velocity.y, flat.z);
+        rb.angularVelocity *= Mathf.Exp(-4f * deltaTime);
+    }
+
     private void ProbeGround()
     {
         float probeLength = handling.rideHeight + handling.groundProbeExtra;
@@ -217,7 +245,8 @@ public class CarController : MonoBehaviour
     {
         float fade = Mathf.Clamp01(Mathf.Abs(forwardSpeed) * MpsToKph / Mathf.Max(1f, handling.steerFadeSpeedKph));
         float steerFactor = Mathf.Lerp(1f, handling.highSpeedSteerFactor, fade);
-        float targetAngle = input.Steer * handling.maxSteerAngle * steerFactor;
+        float steer = assistedStop ? 0f : input.Steer;
+        float targetAngle = steer * handling.maxSteerAngle * steerFactor;
         steerAngle = Mathf.MoveTowards(steerAngle, targetAngle, handling.steerResponse * handling.maxSteerAngle * deltaTime);
     }
 

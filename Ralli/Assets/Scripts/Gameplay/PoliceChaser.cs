@@ -5,7 +5,8 @@ using UnityEngine;
 // speed along the road. It never dodges; traffic it touches is knocked loose and shoved aside.
 // Near the player it steers onto the player's line and rams them in a loop: chase, ram (drive into
 // the player, plus an exaggerated random shove), back off for a moment, repeat. Assumes the van is
-// behind the player.
+// behind the player. When the player finishes the stage, the van stops chasing and drives straight
+// on in the left lane, past the player and off the road's dead end into the woods, and vanishes.
 public class PoliceChaser : MonoBehaviour
 {
     private enum ChaseState { Chasing, Ramming, BackingOff }
@@ -27,6 +28,7 @@ public class PoliceChaser : MonoBehaviour
     private ChaseState state;
     private float backoffTimer;
     private VehicleLights vanLights;
+    private bool passingThrough;
     private readonly Collider[] shoveBuffer = new Collider[16];
 
     // First contact with the player (the future lose-condition hook).
@@ -38,6 +40,35 @@ public class PoliceChaser : MonoBehaviour
     public bool HasCaughtPlayer { get; private set; }
     // Bumper-to-bumper distance to the player along the road (m); meaningful while chasing.
     public float GapToPlayer { get; private set; }
+
+    // Stage setup: a runtime config copy, set before the chase starts.
+    public void UseConfig(PoliceConfig stageConfig)
+    {
+        config = stageConfig;
+    }
+
+    // The player finished: stop chasing and drive on through (a van not out yet never comes).
+    public void PassThrough()
+    {
+        passingThrough = true;
+        if (vanCollider != null)
+        {
+            vanCollider.enabled = false;
+        }
+    }
+
+    // How far behind the van is, in seconds: the gap over chase speed, or before it appears, the
+    // rest of its start delay plus the time to cover its spawn distance.
+    public float GetLeadSeconds()
+    {
+        float chaseSpeed = Mathf.Max(1f, config.chaseSpeedKph / 3.6f);
+        if (van == null)
+        {
+            return Mathf.Max(0f, config.startDelay - startTimer) + config.spawnDistanceBehind / chaseSpeed;
+        }
+
+        return Mathf.Max(0f, GapToPlayer) / chaseSpeed;
+    }
 
     private void Start()
     {
@@ -61,7 +92,7 @@ public class PoliceChaser : MonoBehaviour
         if (van == null)
         {
             // The delay counts from when the player turns the engine on.
-            if (!player.EngineRunning)
+            if (!player.EngineRunning || passingThrough)
             {
                 return;
             }
@@ -72,6 +103,12 @@ public class PoliceChaser : MonoBehaviour
                 SpawnVan();
             }
 
+            return;
+        }
+
+        if (passingThrough)
+        {
+            DriveThrough(deltaTime);
             return;
         }
 
@@ -196,6 +233,26 @@ public class PoliceChaser : MonoBehaviour
         MoveAlongRoad(false);
     }
 
+    private void DriveThrough(float deltaTime)
+    {
+        speedMps = Mathf.MoveTowards(speedMps, config.chaseSpeedKph / 3.6f, config.accelerationMps2 * deltaTime);
+        s += speedMps * deltaTime;
+        lateralOffset = Mathf.MoveTowards(lateralOffset, -GetLaneOffset(), config.lateralSpeed * deltaTime);
+        if (vanLights != null)
+        {
+            vanLights.SetBraking(false);
+        }
+
+        if (road.HasRoadEnd && s - road.RoadEndS > config.passThroughVanishDistance)
+        {
+            Destroy(van.gameObject);
+            van = null;
+            return;
+        }
+
+        MoveAlongRoad(false);
+    }
+
     // The van's own contact already shoves the player; on top of that, an exaggerated random kick
     // so no two hits play out the same.
     private void LandRam(Vector3 roadForward, Vector3 roadRight)
@@ -222,13 +279,16 @@ public class PoliceChaser : MonoBehaviour
         return road.GetRoadWidth() * 0.25f;
     }
 
+    // Past a dead end the van carries straight on along the road's last direction.
     private void MoveAlongRoad(bool teleport)
     {
-        if (!road.TryGetRoadFrameAtS(s, out Vector3 position, out Vector3 forward, out Vector3 right, out Vector3 up, out _))
+        float roadS = Mathf.Min(s, road.RoadEndS);
+        if (!road.TryGetRoadFrameAtS(roadS, out Vector3 position, out Vector3 forward, out Vector3 right, out Vector3 up, out _))
         {
             return;
         }
 
+        position += forward * (s - roadS);
         Vector3 vanPosition = position + right * lateralOffset + up * (config.vanSize.y * 0.5f);
         Quaternion rotation = Quaternion.LookRotation(forward, up);
         if (teleport)
