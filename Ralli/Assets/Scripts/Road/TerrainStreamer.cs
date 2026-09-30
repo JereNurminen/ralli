@@ -4,7 +4,9 @@ using UnityEngine;
 // Streams world-space terrain tiles in a band along the road. Ground height blends from the
 // road's ditch lip (cut/fill) to the heightfield further out, so it can never fold over itself
 // the way a spline-extruded skirt does. The band ends in a solid wall (distance-to-road contour,
-// traced per tile). Trees grow in a strip along the road and get trunk colliders.
+// traced per tile). Trees grow in a strip along the road and get trunk colliders. Gas station lots
+// get flat ground and no trees; past a dead end of the road the forest floor carries on flush and
+// trees close in. Tree placement is random per road build (not tied to the road seed).
 [RequireComponent(typeof(RoadStreamGenerator))]
 public class TerrainStreamer : MonoBehaviour
 {
@@ -45,6 +47,7 @@ public class TerrainStreamer : MonoBehaviour
     private int checkedSampleCount;
     private int wantedSampleCount = -1;
     private Vector3 wantedCenter;
+    private int treeSeed;
 
     private void Start()
     {
@@ -75,6 +78,7 @@ public class TerrainStreamer : MonoBehaviour
         {
             ClearTiles();
             knownGeneration = road.Generation;
+            treeSeed = Random.Range(1, int.MaxValue);
             checkedSampleCount = 0;
             wantedSampleCount = -1;
         }
@@ -257,7 +261,7 @@ public class TerrainStreamer : MonoBehaviour
             {
                 float x = origin.x + (i - 1) * step;
                 float z = origin.z + (j - 1) * step;
-                heights[i, j] = SampleGround(x, z, out distances[i, j]);
+                heights[i, j] = SampleGround(x, z, out distances[i, j], out _);
             }
         }
 
@@ -490,8 +494,10 @@ public class TerrainStreamer : MonoBehaviour
     }
 
     // Road-aware ground height: tucked under the road corridor, flat at lip height right
-    // outside it, then blending to the heightfield (this blend is the cut/fill face).
-    private float SampleGround(float x, float z, out float roadDistance)
+    // outside it, then blending to the heightfield (this blend is the cut/fill face). Station lots
+    // override it with their flat pad. treeDistance is how far trees must keep: the road distance,
+    // except past a dead end, where it grows with the distance beyond the end.
+    private float SampleGround(float x, float z, out float roadDistance, out float treeDistance)
     {
         RoadGenerationConfig config = road.Config;
         float terrainHeight = road.HeightField.GetHeight(x, z);
@@ -500,20 +506,82 @@ public class TerrainStreamer : MonoBehaviour
         float blend = Mathf.Max(0.01f, config.roadBlendWidth);
 
         int sampleIndex = FindNearestSample(x, z, out roadDistance);
-        if (sampleIndex < 0 || roadDistance > corridor + flatRing + blend)
+        treeDistance = roadDistance;
+        float height = terrainHeight;
+        if (sampleIndex >= 0 && roadDistance <= corridor + flatRing + blend)
         {
-            return terrainHeight;
+            float lipHeight = road.GetLipHeight(sampleIndex, x, z);
+            float beyondEnd = GetDistanceBeyondRoadEnd(sampleIndex, x, z);
+            if (beyondEnd > 0f)
+            {
+                // No road here: forest floor level with the road end, blending out to the terrain.
+                treeDistance = Mathf.Max(roadDistance, road.CorridorHalfWidth + Mathf.Max(0f, config.treeDitchClearance) + beyondEnd - config.roadEndTreeGap);
+                float tEnd = Mathf.Clamp01((roadDistance - flatRing) / blend);
+                height = Mathf.Lerp(lipHeight, terrainHeight, tEnd * tEnd * (3f - 2f * tEnd));
+            }
+            else if (roadDistance <= corridor)
+            {
+                return lipHeight - Mathf.Max(0f, config.corridorTuckDepth);
+            }
+            else
+            {
+                float t = Mathf.Clamp01((roadDistance - corridor - flatRing) / blend);
+                t = t * t * (3f - 2f * t);
+                height = Mathf.Lerp(lipHeight, terrainHeight, t);
+            }
         }
 
-        float lipHeight = road.GetLipHeight(sampleIndex, x, z);
-        if (roadDistance <= corridor)
+        if (roadDistance > corridor || sampleIndex < 0)
         {
-            return lipHeight - Mathf.Max(0f, config.corridorTuckDepth);
+            height = BlendStationLots(x, z, height, ref treeDistance);
         }
 
-        float t = Mathf.Clamp01((roadDistance - corridor - flatRing) / blend);
-        t = t * t * (3f - 2f * t);
-        return Mathf.Lerp(lipHeight, terrainHeight, t);
+        return height;
+    }
+
+    // How far (x, z) lies past a dead end of the road (0 when not past one).
+    private float GetDistanceBeyondRoadEnd(int sampleIndex, float x, float z)
+    {
+        if (!road.IsRoadEndSample(sampleIndex))
+        {
+            return 0f;
+        }
+
+        Vector3 end = road.GetSamplePosition(sampleIndex);
+        Vector3 outward = road.GetSampleTangent(sampleIndex) * (sampleIndex == 0 ? -1f : 1f);
+        Vector2 outwardFlat = new Vector2(outward.x, outward.z).normalized;
+        return Mathf.Max(0f, (x - end.x) * outwardFlat.x + (z - end.z) * outwardFlat.y);
+    }
+
+    // Flat at road surface height on a station lot, blending back to the given height around it.
+    // No trees on the lot or its blend margin.
+    private float BlendStationLots(float x, float z, float height, ref float treeDistance)
+    {
+        RoadGenerationConfig config = road.Config;
+        float margin = Mathf.Max(0.01f, config.stationLotTerrainBlend);
+        IReadOnlyList<RoadStreamGenerator.StationLot> lots = road.GetStationLots();
+        for (int i = 0; i < lots.Count; i++)
+        {
+            RoadStreamGenerator.StationLot lot = lots[i];
+            Vector3 offset = new Vector3(x - lot.origin.x, 0f, z - lot.origin.z);
+            float across = Vector3.Dot(offset, lot.right);
+            float along = Vector3.Dot(offset, lot.forward);
+            // The road side (across < 0) is the road's own flattened apron.
+            float outsideAcross = Mathf.Max(0f, across - lot.depth);
+            float outsideAlong = Mathf.Max(0f, Mathf.Abs(along) - lot.length * 0.5f);
+            float outside = Mathf.Sqrt(outsideAcross * outsideAcross + outsideAlong * outsideAlong);
+            if (outside >= margin)
+            {
+                continue;
+            }
+
+            float t = outside / margin;
+            float weight = 1f - t * t * (3f - 2f * t);
+            height = Mathf.Lerp(height, lot.origin.y + config.forestFloorYOffset, weight);
+            treeDistance = -1f;
+        }
+
+        return height;
     }
 
     private void SpawnTrees(Transform parent, Vector3 origin, float tileSize)
@@ -540,20 +608,20 @@ public class TerrainStreamer : MonoBehaviour
         {
             for (int cz = minZ; cz <= maxZ; cz++)
             {
-                if (TerrainHeightField.Hash01(road.GetSeed(), cx, cz, 1) >= config.treeDensity)
+                if (TerrainHeightField.Hash01(treeSeed, cx, cz, 1) >= config.treeDensity)
                 {
                     continue;
                 }
 
-                float px = (cx + Mathf.Lerp(0.15f, 0.85f, TerrainHeightField.Hash01(road.GetSeed(), cx, cz, 2))) * cell;
-                float pz = (cz + Mathf.Lerp(0.15f, 0.85f, TerrainHeightField.Hash01(road.GetSeed(), cx, cz, 3))) * cell;
-                float groundHeight = SampleGround(px, pz, out float distance);
+                float px = (cx + Mathf.Lerp(0.15f, 0.85f, TerrainHeightField.Hash01(treeSeed, cx, cz, 2))) * cell;
+                float pz = (cz + Mathf.Lerp(0.15f, 0.85f, TerrainHeightField.Hash01(treeSeed, cx, cz, 3))) * cell;
+                float groundHeight = SampleGround(px, pz, out _, out float distance);
                 if (distance < inner || distance > outer)
                 {
                     continue;
                 }
 
-                var rng = new System.Random((int)(TerrainHeightField.Hash01(road.GetSeed(), cx, cz, 4) * int.MaxValue));
+                var rng = new System.Random((int)(TerrainHeightField.Hash01(treeSeed, cx, cz, 4) * int.MaxValue));
                 GameObject prefab = SelectTreePrefab(config, rng, out bool isBirch);
                 if (prefab == null)
                 {

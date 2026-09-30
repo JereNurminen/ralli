@@ -194,6 +194,18 @@ public class RoadGenerationConfig : ScriptableObject
     [Tooltip("Post embed depth into ground (meters).")]
     public float railPostEmbedDepthMeters = 0.06f;
 
+    [Header("Stations")]
+    [Tooltip("Straight, flat stretch of road centered on each gas station (m).")]
+    public float stationStretchLength = 120f;
+    [Tooltip("Station lot beside the road (right side): x = depth away from the road, y = length along it (m).")]
+    public Vector2 stationLotSize = new Vector2(20f, 26f);
+    [Tooltip("Along the lot the right shoulder and ditch are flattened to road level; they blend back over this distance (m).")]
+    public float stationApronBlend = 8f;
+    [Tooltip("Terrain blends from lot height back to normal over this distance around the lot (m).")]
+    public float stationLotTerrainBlend = 15f;
+    [Tooltip("Where the road dead-ends, trees start this far past its end (m).")]
+    public float roadEndTreeGap = 3f;
+
     [Header("Debug")]
     [Tooltip("Draw centerline and frame gizmos.")]
     public bool drawGizmos = true;
