@@ -91,8 +91,14 @@ public class RoadGenerationConfig : ScriptableObject
     public float terrainTileSize = 48f;
     [Tooltip("Quads per tile side. Tile size / this = vertex spacing.")]
     public int terrainTileResolution = 24;
-    [Tooltip("Tiles are kept within this distance of the stream center (m).")]
-    public float terrainRadius = 240f;
+    [Tooltip("Terrain is streamed along the road up to this distance from the stream center (m).")]
+    public float terrainRadius = 720f;
+    [Tooltip("Terrain reaches this far sideways from the road (m). A wall stands at this edge.")]
+    public float terrainBandHalfWidth = 120f;
+    [Tooltip("Height of the wall at the terrain band edge (m).")]
+    public float terrainWallHeight = 25f;
+    [Tooltip("How far the wall extends below ground (m), so slopes never show a gap under it.")]
+    public float terrainWallSink = 3f;
     [Tooltip("Stream center is shifted this far (m) from the car toward the target bearing.")]
     public float terrainBearingBias = 60f;
     [Tooltip("Max tiles built per frame. Limits hitches.")]

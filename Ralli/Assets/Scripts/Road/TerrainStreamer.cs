@@ -1,23 +1,29 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-// Streams world-space terrain tiles around the car. Ground height blends from the road's
-// ditch lip next to the road (cut/fill) to the heightfield further out, so the terrain can
-// never fold over itself the way a spline-extruded skirt does. Trees grow in a band along
-// the road and get trunk colliders.
+// Streams world-space terrain tiles in a band along the road. Ground height blends from the
+// road's ditch lip (cut/fill) to the heightfield further out, so it can never fold over itself
+// the way a spline-extruded skirt does. The band ends in a solid wall (distance-to-road contour,
+// traced per tile). Trees grow in a strip along the road and get trunk colliders.
 [RequireComponent(typeof(RoadStreamGenerator))]
 public class TerrainStreamer : MonoBehaviour
 {
     private class Tile
     {
         public GameObject gameObject;
-        public Mesh mesh;
+        public Mesh groundMesh;
+        public Mesh wallMesh;
     }
 
     [Header("References")]
     [SerializeField] private RoadStreamGenerator road;
     [SerializeField] private Transform target;
     [SerializeField] private Material groundMaterial;
+
+    [Header("Band Wall")]
+    [Tooltip("Material for the wall at the terrain band edge. Empty = unlit solid Wall Color.")]
+    [SerializeField] private Material wallMaterial;
+    [SerializeField] private Color wallColor = new Color(0.16f, 0.22f, 0.16f, 1f);
 
     [Header("Trees")]
     [SerializeField] private GameObject[] birchTreePrefabs;
@@ -28,11 +34,17 @@ public class TerrainStreamer : MonoBehaviour
     [SerializeField] private Material pineBarkFallbackMaterial;
 
     private readonly Dictionary<Vector2Int, Tile> tiles = new Dictionary<Vector2Int, Tile>();
+    private readonly HashSet<Vector2Int> wantedTiles = new HashSet<Vector2Int>();
     private readonly HashSet<Vector2Int> dirtyTiles = new HashSet<Vector2Int>();
     private readonly List<Vector2Int> buildCandidates = new List<Vector2Int>();
     private readonly List<Vector2Int> tilesToRemove = new List<Vector2Int>();
+    private readonly List<int> nearbySamples = new List<int>();
+    private readonly List<Vector2> nearbySamplePositions = new List<Vector2>();
+    private Material runtimeWallMaterial;
     private int knownGeneration = -1;
     private int checkedSampleCount;
+    private int wantedSampleCount = -1;
+    private Vector3 wantedCenter;
 
     private void Start()
     {
@@ -64,22 +76,27 @@ public class TerrainStreamer : MonoBehaviour
             ClearTiles();
             knownGeneration = road.Generation;
             checkedSampleCount = 0;
+            wantedSampleCount = -1;
         }
 
         MarkTilesTouchedByNewRoad(config);
 
         Vector3 center = GetStreamCenter(config);
         float tileSize = Mathf.Max(8f, config.terrainTileSize);
-        float radius = Mathf.Max(tileSize, config.terrainRadius);
-
-        BuildNearestMissingTiles(center, tileSize, radius, Mathf.Max(1, config.terrainTilesPerFrame));
-        RemoveFarTiles(center, tileSize, radius + tileSize);
+        RefreshWantedTiles(config, center, tileSize);
+        BuildNearestMissingTiles(center, tileSize, Mathf.Max(1, config.terrainTilesPerFrame));
+        RemoveUnwantedTiles();
     }
 
     private Vector3 GetStreamCenter(RoadGenerationConfig config)
     {
         Vector3 origin = target != null ? target.position : transform.position;
         return origin + road.GetTargetBearingDirection() * config.terrainBearingBias;
+    }
+
+    private float GetBandHalfWidth(RoadGenerationConfig config)
+    {
+        return Mathf.Max(road.CorridorHalfWidth + 1f, config.terrainBandHalfWidth);
     }
 
     // New road samples (rare: the road looping back later) invalidate tiles they now influence.
@@ -92,15 +109,10 @@ public class TerrainStreamer : MonoBehaviour
         }
 
         float tileSize = Mathf.Max(8f, config.terrainTileSize);
-        float reach = GetInfluenceReach(config);
+        float reach = GetBandHalfWidth(config) + tileSize / Mathf.Max(2, config.terrainTileResolution) * 2f;
 
-        for (int i = checkedSampleCount; i < sampleCount; i++)
+        for (int i = checkedSampleCount; i < sampleCount && tiles.Count > 0; i++)
         {
-            if (tiles.Count == 0)
-            {
-                break;
-            }
-
             Vector3 p = road.GetSamplePosition(i);
             int minX = Mathf.FloorToInt((p.x - reach) / tileSize);
             int maxX = Mathf.FloorToInt((p.x + reach) / tileSize);
@@ -122,35 +134,63 @@ public class TerrainStreamer : MonoBehaviour
         checkedSampleCount = sampleCount;
     }
 
-    private float GetInfluenceReach(RoadGenerationConfig config)
+    // Tiles within the band around road samples that are within terrainRadius of the center.
+    // Recomputed only after moving half a tile or when the road grows.
+    private void RefreshWantedTiles(RoadGenerationConfig config, Vector3 center, float tileSize)
     {
-        float ground = road.CorridorHalfWidth + config.roadFlatRing + config.roadBlendWidth;
-        float trees = road.CorridorHalfWidth + config.treeDitchClearance + config.treeBandWidth;
-        return Mathf.Max(ground, trees);
+        Vector3 moved = center - wantedCenter;
+        moved.y = 0f;
+        if (wantedSampleCount == road.SampleCount && moved.sqrMagnitude < tileSize * tileSize * 0.25f)
+        {
+            return;
+        }
+
+        wantedCenter = center;
+        wantedSampleCount = road.SampleCount;
+        wantedTiles.Clear();
+
+        float radius = Mathf.Max(tileSize, config.terrainRadius);
+        float band = GetBandHalfWidth(config);
+        float tileHalfDiagonal = tileSize * 0.7072f;
+        int stride = Mathf.Max(1, Mathf.RoundToInt(tileSize * 0.5f / Mathf.Max(0.01f, road.SampleSpacing)));
+        Vector2 center2 = new Vector2(center.x, center.z);
+
+        for (int i = 0; i < road.SampleCount; i += stride)
+        {
+            Vector3 p = road.GetSamplePosition(i);
+            Vector2 p2 = new Vector2(p.x, p.z);
+            if (Vector2.Distance(p2, center2) > radius)
+            {
+                continue;
+            }
+
+            float reach = band + tileHalfDiagonal + tileSize * 0.5f;
+            int minX = Mathf.FloorToInt((p.x - reach) / tileSize);
+            int maxX = Mathf.FloorToInt((p.x + reach) / tileSize);
+            int minZ = Mathf.FloorToInt((p.z - reach) / tileSize);
+            int maxZ = Mathf.FloorToInt((p.z + reach) / tileSize);
+            for (int x = minX; x <= maxX; x++)
+            {
+                for (int z = minZ; z <= maxZ; z++)
+                {
+                    Vector2 tileCenter = new Vector2((x + 0.5f) * tileSize, (z + 0.5f) * tileSize);
+                    if (Vector2.Distance(tileCenter, p2) <= reach)
+                    {
+                        wantedTiles.Add(new Vector2Int(x, z));
+                    }
+                }
+            }
+        }
     }
 
-    private void BuildNearestMissingTiles(Vector3 center, float tileSize, float radius, int maxBuilds)
+    private void BuildNearestMissingTiles(Vector3 center, float tileSize, int maxBuilds)
     {
         buildCandidates.Clear();
-        int minX = Mathf.FloorToInt((center.x - radius) / tileSize);
-        int maxX = Mathf.FloorToInt((center.x + radius) / tileSize);
-        int minZ = Mathf.FloorToInt((center.z - radius) / tileSize);
-        int maxZ = Mathf.FloorToInt((center.z + radius) / tileSize);
-
-        for (int x = minX; x <= maxX; x++)
+        foreach (Vector2Int coord in wantedTiles)
         {
-            for (int z = minZ; z <= maxZ; z++)
+            if (!tiles.ContainsKey(coord) || dirtyTiles.Contains(coord))
             {
-                Vector2Int coord = new Vector2Int(x, z);
-                if (GetTileDistance(coord, center, tileSize) > radius)
-                {
-                    continue;
-                }
-
-                if (!tiles.ContainsKey(coord) || dirtyTiles.Contains(coord))
-                {
-                    buildCandidates.Add(coord);
-                }
+                buildCandidates.Add(coord);
             }
         }
 
@@ -170,12 +210,12 @@ public class TerrainStreamer : MonoBehaviour
         }
     }
 
-    private void RemoveFarTiles(Vector3 center, float tileSize, float keepRadius)
+    private void RemoveUnwantedTiles()
     {
         tilesToRemove.Clear();
         foreach (KeyValuePair<Vector2Int, Tile> pair in tiles)
         {
-            if (GetTileDistance(pair.Key, center, tileSize) > keepRadius)
+            if (!wantedTiles.Contains(pair.Key))
             {
                 tilesToRemove.Add(pair.Key);
             }
@@ -200,17 +240,84 @@ public class TerrainStreamer : MonoBehaviour
         RoadGenerationConfig config = road.Config;
         int resolution = Mathf.Clamp(config.terrainTileResolution, 2, 128);
         float step = tileSize / resolution;
+        float band = GetBandHalfWidth(config);
         Vector3 origin = new Vector3(coord.x * tileSize, 0f, coord.y * tileSize);
         int n = resolution + 1;
 
-        // Heights include a one-vertex border so normals match across tile edges.
+        CollectNearbySamples(origin, tileSize, band + step * 3f);
+
+        // Heights and road distances include a one-vertex border so normals match across tiles.
         float[,] heights = new float[n + 2, n + 2];
+        float[,] distances = new float[n + 2, n + 2];
         for (int i = 0; i < n + 2; i++)
         {
             for (int j = 0; j < n + 2; j++)
             {
-                heights[i, j] = SampleGround(origin.x + (i - 1) * step, origin.z + (j - 1) * step);
+                float x = origin.x + (i - 1) * step;
+                float z = origin.z + (j - 1) * step;
+                heights[i, j] = SampleGround(x, z, out distances[i, j]);
             }
+        }
+
+        GameObject tileObject = new GameObject($"TerrainTile_{coord.x}_{coord.y}");
+        tileObject.transform.SetParent(transform, false);
+        tileObject.transform.SetPositionAndRotation(origin, Quaternion.identity);
+
+        Tile tile = new Tile { gameObject = tileObject };
+        tile.groundMesh = BuildGroundMesh(coord, resolution, step, heights, distances, band);
+        if (tile.groundMesh != null)
+        {
+            tileObject.AddComponent<MeshFilter>().sharedMesh = tile.groundMesh;
+            tileObject.AddComponent<MeshRenderer>().sharedMaterial = groundMaterial;
+            tileObject.AddComponent<MeshCollider>().sharedMesh = tile.groundMesh;
+        }
+
+        tile.wallMesh = BuildWallMesh(coord, resolution, step, heights, distances, band);
+        if (tile.wallMesh != null)
+        {
+            GameObject wallObject = new GameObject("BandWall");
+            wallObject.transform.SetParent(tileObject.transform, false);
+            wallObject.AddComponent<MeshFilter>().sharedMesh = tile.wallMesh;
+            wallObject.AddComponent<MeshRenderer>().sharedMaterial = ResolveWallMaterial();
+            wallObject.AddComponent<MeshCollider>().sharedMesh = tile.wallMesh;
+        }
+
+        SpawnTrees(tileObject.transform, origin, tileSize, band);
+        return tile;
+    }
+
+    // Ground quads are kept if any corner is inside the band; the wall hides the ragged edge.
+    private Mesh BuildGroundMesh(Vector2Int coord, int resolution, float step, float[,] heights, float[,] distances, float band)
+    {
+        int n = resolution + 1;
+        var triangles = new List<int>(resolution * resolution * 6);
+        for (int i = 0; i < resolution; i++)
+        {
+            for (int j = 0; j < resolution; j++)
+            {
+                bool inside = distances[i + 1, j + 1] <= band || distances[i + 2, j + 1] <= band
+                              || distances[i + 1, j + 2] <= band || distances[i + 2, j + 2] <= band;
+                if (!inside)
+                {
+                    continue;
+                }
+
+                int a = j * n + i;
+                int b = (j + 1) * n + i;
+                int c = (j + 1) * n + i + 1;
+                int d = j * n + i + 1;
+                triangles.Add(a);
+                triangles.Add(b);
+                triangles.Add(c);
+                triangles.Add(a);
+                triangles.Add(c);
+                triangles.Add(d);
+            }
+        }
+
+        if (triangles.Count == 0)
+        {
+            return null;
         }
 
         Vector3[] vertices = new Vector3[n * n];
@@ -230,49 +337,159 @@ public class TerrainStreamer : MonoBehaviour
             }
         }
 
-        int[] triangles = new int[resolution * resolution * 6];
-        int t = 0;
-        for (int i = 0; i < resolution; i++)
-        {
-            for (int j = 0; j < resolution; j++)
-            {
-                int a = j * n + i;
-                int b = (j + 1) * n + i;
-                int c = (j + 1) * n + i + 1;
-                int d = j * n + i + 1;
-                triangles[t++] = a;
-                triangles[t++] = b;
-                triangles[t++] = c;
-                triangles[t++] = a;
-                triangles[t++] = c;
-                triangles[t++] = d;
-            }
-        }
-
         Mesh mesh = new Mesh
         {
             name = $"Terrain_{coord.x}_{coord.y}",
             vertices = vertices,
             normals = normals,
-            colors = colors,
-            triangles = triangles
+            colors = colors
         };
+        mesh.SetTriangles(triangles, 0);
         mesh.RecalculateBounds();
+        return mesh;
+    }
 
-        GameObject tileObject = new GameObject($"TerrainTile_{coord.x}_{coord.y}");
-        tileObject.transform.SetParent(transform, false);
-        tileObject.transform.SetPositionAndRotation(origin, Quaternion.identity);
-        tileObject.AddComponent<MeshFilter>().sharedMesh = mesh;
-        tileObject.AddComponent<MeshRenderer>().sharedMaterial = groundMaterial;
-        tileObject.AddComponent<MeshCollider>().sharedMesh = mesh;
+    // Marching squares on (distance - band): each grid cell the band edge crosses gets one
+    // vertical, double-sided wall quad. Because it follows a distance contour it cannot fold.
+    private Mesh BuildWallMesh(Vector2Int coord, int resolution, float step, float[,] heights, float[,] distances, float band)
+    {
+        RoadGenerationConfig config = road.Config;
+        float wallHeight = Mathf.Max(0.5f, config.terrainWallHeight);
+        float sink = Mathf.Max(0f, config.terrainWallSink);
+        var vertices = new List<Vector3>();
+        var triangles = new List<int>();
+        var crossings = new List<Vector3>(4);
 
-        SpawnTrees(tileObject.transform, origin, tileSize);
-        return new Tile { gameObject = tileObject, mesh = mesh };
+        for (int i = 0; i < resolution; i++)
+        {
+            for (int j = 0; j < resolution; j++)
+            {
+                crossings.Clear();
+                // Corners in loop order: (i,j) → (i+1,j) → (i+1,j+1) → (i,j+1).
+                AddCrossing(crossings, i, j, i + 1, j, step, heights, distances, band);
+                AddCrossing(crossings, i + 1, j, i + 1, j + 1, step, heights, distances, band);
+                AddCrossing(crossings, i + 1, j + 1, i, j + 1, step, heights, distances, band);
+                AddCrossing(crossings, i, j + 1, i, j, step, heights, distances, band);
+
+                for (int k = 0; k + 1 < crossings.Count; k += 2)
+                {
+                    AddWallQuad(vertices, triangles, crossings[k], crossings[k + 1], wallHeight, sink);
+                }
+            }
+        }
+
+        if (triangles.Count == 0)
+        {
+            return null;
+        }
+
+        Mesh mesh = new Mesh { name = $"TerrainWall_{coord.x}_{coord.y}" };
+        mesh.SetVertices(vertices);
+        mesh.SetTriangles(triangles, 0);
+        mesh.RecalculateNormals();
+        mesh.RecalculateBounds();
+        return mesh;
+    }
+
+    private static void AddCrossing(List<Vector3> crossings, int ai, int aj, int bi, int bj, float step, float[,] heights, float[,] distances, float band)
+    {
+        float fa = distances[ai + 1, aj + 1] - band;
+        float fb = distances[bi + 1, bj + 1] - band;
+        if ((fa <= 0f) == (fb <= 0f))
+        {
+            return;
+        }
+
+        float t = fa / (fa - fb);
+        float x = Mathf.Lerp(ai, bi, t) * step;
+        float z = Mathf.Lerp(aj, bj, t) * step;
+        float y = Mathf.Lerp(heights[ai + 1, aj + 1], heights[bi + 1, bj + 1], t);
+        crossings.Add(new Vector3(x, y, z));
+    }
+
+    private static void AddWallQuad(List<Vector3> vertices, List<int> triangles, Vector3 a, Vector3 b, float wallHeight, float sink)
+    {
+        int start = vertices.Count;
+        vertices.Add(new Vector3(a.x, a.y - sink, a.z));
+        vertices.Add(new Vector3(b.x, b.y - sink, b.z));
+        vertices.Add(new Vector3(b.x, b.y + wallHeight, b.z));
+        vertices.Add(new Vector3(a.x, a.y + wallHeight, a.z));
+
+        // Both windings so the wall shows from either side.
+        triangles.Add(start);
+        triangles.Add(start + 2);
+        triangles.Add(start + 1);
+        triangles.Add(start);
+        triangles.Add(start + 3);
+        triangles.Add(start + 2);
+        triangles.Add(start);
+        triangles.Add(start + 1);
+        triangles.Add(start + 2);
+        triangles.Add(start);
+        triangles.Add(start + 2);
+        triangles.Add(start + 3);
+    }
+
+    private Material ResolveWallMaterial()
+    {
+        if (wallMaterial != null)
+        {
+            return wallMaterial;
+        }
+
+        if (runtimeWallMaterial == null)
+        {
+            Shader shader = Shader.Find("Universal Render Pipeline/Unlit");
+            runtimeWallMaterial = new Material(shader != null ? shader : Shader.Find("Sprites/Default"))
+            {
+                name = "Runtime_BandWall",
+                hideFlags = HideFlags.DontSave
+            };
+            if (runtimeWallMaterial.HasProperty("_BaseColor"))
+            {
+                runtimeWallMaterial.SetColor("_BaseColor", wallColor);
+            }
+            runtimeWallMaterial.color = wallColor;
+        }
+
+        return runtimeWallMaterial;
+    }
+
+    // Grabs road samples near a tile once, so per-vertex nearest-road lookups are a flat loop.
+    private void CollectNearbySamples(Vector3 origin, float tileSize, float reach)
+    {
+        nearbySamples.Clear();
+        nearbySamplePositions.Clear();
+        road.CollectSampleIndices(origin.x - reach, origin.z - reach, origin.x + tileSize + reach, origin.z + tileSize + reach, nearbySamples);
+        for (int i = 0; i < nearbySamples.Count; i++)
+        {
+            Vector3 p = road.GetSamplePosition(nearbySamples[i]);
+            nearbySamplePositions.Add(new Vector2(p.x, p.z));
+        }
+    }
+
+    private int FindNearestSample(float x, float z, out float distance)
+    {
+        int best = -1;
+        float bestSq = float.MaxValue;
+        for (int i = 0; i < nearbySamplePositions.Count; i++)
+        {
+            Vector2 p = nearbySamplePositions[i];
+            float sq = (p.x - x) * (p.x - x) + (p.y - z) * (p.y - z);
+            if (sq < bestSq)
+            {
+                bestSq = sq;
+                best = i;
+            }
+        }
+
+        distance = best >= 0 ? Mathf.Sqrt(bestSq) : float.MaxValue;
+        return best >= 0 ? nearbySamples[best] : -1;
     }
 
     // Road-aware ground height: tucked under the road corridor, flat at lip height right
     // outside it, then blending to the heightfield (this blend is the cut/fill face).
-    private float SampleGround(float x, float z)
+    private float SampleGround(float x, float z, out float roadDistance)
     {
         RoadGenerationConfig config = road.Config;
         float terrainHeight = road.HeightField.GetHeight(x, z);
@@ -280,22 +497,24 @@ public class TerrainStreamer : MonoBehaviour
         float flatRing = Mathf.Max(0f, config.roadFlatRing);
         float blend = Mathf.Max(0.01f, config.roadBlendWidth);
 
-        if (!road.TryGetRoadProximity(x, z, corridor + flatRing + blend, out float distance, out float lipHeight))
+        int sampleIndex = FindNearestSample(x, z, out roadDistance);
+        if (sampleIndex < 0 || roadDistance > corridor + flatRing + blend)
         {
             return terrainHeight;
         }
 
-        if (distance <= corridor)
+        float lipHeight = road.GetLipHeight(sampleIndex, x, z);
+        if (roadDistance <= corridor)
         {
             return lipHeight - Mathf.Max(0f, config.corridorTuckDepth);
         }
 
-        float t = Mathf.Clamp01((distance - corridor - flatRing) / blend);
+        float t = Mathf.Clamp01((roadDistance - corridor - flatRing) / blend);
         t = t * t * (3f - 2f * t);
         return Mathf.Lerp(lipHeight, terrainHeight, t);
     }
 
-    private void SpawnTrees(Transform parent, Vector3 origin, float tileSize)
+    private void SpawnTrees(Transform parent, Vector3 origin, float tileSize, float band)
     {
         RoadGenerationConfig config = road.Config;
         if (!config.spawnForestTrees)
@@ -305,7 +524,7 @@ public class TerrainStreamer : MonoBehaviour
 
         float cell = Mathf.Max(1f, config.treeCellSize);
         float inner = road.CorridorHalfWidth + Mathf.Max(0f, config.treeDitchClearance);
-        float outer = inner + Mathf.Max(0f, config.treeBandWidth);
+        float outer = Mathf.Min(inner + Mathf.Max(0f, config.treeBandWidth), band - 1f);
         Quaternion modelOffset = Quaternion.Euler(config.treeModelRotationOffsetEuler);
 
         // A cell belongs to the tile that contains its min corner, so tiles never double-spawn.
@@ -326,7 +545,8 @@ public class TerrainStreamer : MonoBehaviour
 
                 float px = (cx + Mathf.Lerp(0.15f, 0.85f, TerrainHeightField.Hash01(config.seed, cx, cz, 2))) * cell;
                 float pz = (cz + Mathf.Lerp(0.15f, 0.85f, TerrainHeightField.Hash01(config.seed, cx, cz, 3))) * cell;
-                if (!road.TryGetRoadProximity(px, pz, outer, out float distance, out _) || distance < inner)
+                float groundHeight = SampleGround(px, pz, out float distance);
+                if (distance < inner || distance > outer)
                 {
                     continue;
                 }
@@ -338,7 +558,7 @@ public class TerrainStreamer : MonoBehaviour
                     return;
                 }
 
-                Vector3 position = new Vector3(px, SampleGround(px, pz), pz);
+                Vector3 position = new Vector3(px, groundHeight, pz);
                 Quaternion yaw = Quaternion.Euler(0f, (float)rng.NextDouble() * 360f, 0f);
                 GameObject instance = Instantiate(prefab, position, yaw * modelOffset, parent);
                 ResolveTreeFallbackMaterials(isBirch, out Material leafFallback, out Material barkFallback);
@@ -374,9 +594,14 @@ public class TerrainStreamer : MonoBehaviour
             Destroy(tile.gameObject);
         }
 
-        if (tile.mesh != null)
+        if (tile.groundMesh != null)
         {
-            Destroy(tile.mesh);
+            Destroy(tile.groundMesh);
+        }
+
+        if (tile.wallMesh != null)
+        {
+            Destroy(tile.wallMesh);
         }
 
         tiles.Remove(coord);
@@ -392,6 +617,7 @@ public class TerrainStreamer : MonoBehaviour
         }
 
         dirtyTiles.Clear();
+        wantedTiles.Clear();
     }
 
     private GameObject SelectTreePrefab(RoadGenerationConfig config, System.Random rng, out bool isBirch)
