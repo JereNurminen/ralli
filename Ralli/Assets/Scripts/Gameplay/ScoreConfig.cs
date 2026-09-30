@@ -24,6 +24,14 @@ public class ScoreConfig : ScriptableObject
     [Tooltip("Missing an oncoming car.")]
     public float nearMissPoints = 500f;
 
+    [Header("Air")]
+    [Tooltip("Shortest time off the ground (s) that scores, so bumps don't.")]
+    public float airMinTime = 0.5f;
+    public float airBasePoints = 150f;
+    public float airPointsPerSecond = 400f;
+    [Tooltip("Clearing a traffic car mid-air without touching it, per car.")]
+    public float jumpOverPoints = 2500f;
+
     [Header("Speed")]
     public float bigSpeedKph = 160f;
     public float bigSpeedPoints = 300f;

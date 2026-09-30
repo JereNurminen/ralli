@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 
-// Style scoring. Tricks (drift, near pass, near miss, big/insane speed) award flat points times the
+// Style scoring. Tricks (drift, air, jump over, near pass, near miss, big/insane speed) award flat points times the
 // current multiplier, banked into the score immediately. The multiplier is
 //   1 + speed bonus (current speed) + trick bonus (grows per trick) + police bonus (van distance).
 // Hits only cost multiplier: scrapes and big hits shave the trick bonus, major collisions zero it.
@@ -18,6 +18,7 @@ public class ScoreSystem : MonoBehaviour
     private PoliceChaser police;
     private readonly Dictionary<TrafficVehicle, float> lastAlongOffset = new Dictionary<TrafficVehicle, float>();
     private readonly List<TrafficVehicle> staleVehicles = new List<TrafficVehicle>();
+    private readonly HashSet<TrafficVehicle> jumpedVehicles = new HashSet<TrafficVehicle>();
 
     private bool drifting;
     private float driftTime;
@@ -26,6 +27,7 @@ public class ScoreSystem : MonoBehaviour
     private float insaneSpeedTimer;
     private bool bigSpeedArmed = true;
     private bool insaneSpeedArmed = true;
+    private float airTime;
 
     public float Score { get; private set; }
     public float TrickBonus { get; private set; }
@@ -68,6 +70,7 @@ public class ScoreSystem : MonoBehaviour
         Multiplier = 1f + GetSpeedBonus(speedKph) + TrickBonus + GetPoliceBonus();
 
         UpdateDrift(speedKph, deltaTime);
+        UpdateAir(deltaTime);
         UpdateSpeedTricks(speedKph, deltaTime);
         UpdateTrafficPasses();
     }
@@ -125,6 +128,71 @@ public class ScoreSystem : MonoBehaviour
 
         drifting = false;
         driftTime = 0f;
+    }
+
+    // Air time scores on landing. Traffic cars passed over mid-air (player above the roof, inside
+    // the footprint) score as jump overs on landing, unless the player touched them.
+    private void UpdateAir(float deltaTime)
+    {
+        if (!player.IsGrounded)
+        {
+            airTime += deltaTime;
+            CollectJumpedVehicles();
+            return;
+        }
+
+        if (airTime <= 0f)
+        {
+            return;
+        }
+
+        int cleared = 0;
+        foreach (TrafficVehicle vehicle in jumpedVehicles)
+        {
+            if (vehicle != null && !vehicle.TouchedPlayer)
+            {
+                cleared++;
+            }
+        }
+
+        if (cleared > 0)
+        {
+            Award(cleared > 1 ? $"JUMP OVER x{cleared}" : "JUMP OVER", config.jumpOverPoints * cleared);
+        }
+
+        if (airTime >= config.airMinTime)
+        {
+            Award($"AIR {airTime:0.0}s", config.airBasePoints + config.airPointsPerSecond * airTime);
+        }
+
+        airTime = 0f;
+        jumpedVehicles.Clear();
+    }
+
+    private void CollectJumpedVehicles()
+    {
+        if (traffic == null)
+        {
+            return;
+        }
+
+        Vector3 playerPosition = player.transform.position;
+        IReadOnlyList<TrafficVehicle> vehicles = traffic.Vehicles;
+        for (int i = 0; i < vehicles.Count; i++)
+        {
+            TrafficVehicle vehicle = vehicles[i];
+            if ((vehicle.transform.position - playerPosition).sqrMagnitude > 100f)
+            {
+                continue;
+            }
+
+            // The vehicle root is a scaled unit box, so its footprint is -0.5..0.5 locally.
+            Vector3 local = vehicle.transform.InverseTransformPoint(playerPosition);
+            if (local.y > 0.5f && Mathf.Abs(local.x) < 0.5f && Mathf.Abs(local.z) < 0.5f)
+            {
+                jumpedVehicles.Add(vehicle);
+            }
+        }
     }
 
     private void UpdateSpeedTricks(float speedKph, float deltaTime)
