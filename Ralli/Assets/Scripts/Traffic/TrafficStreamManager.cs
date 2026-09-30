@@ -202,6 +202,12 @@ public class TrafficStreamManager : MonoBehaviour
 
     private void FixedUpdate()
     {
+        // The run starts when the player turns the engine on; until then traffic stands frozen.
+        if (player != null && !player.EngineRunning)
+        {
+            return;
+        }
+
         AssignLeaders();
         TrafficVehicle.PlayerOnRoad playerOnRoad = GetPlayerOnRoad();
         float deltaTime = Time.fixedDeltaTime;
