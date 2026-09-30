@@ -29,6 +29,8 @@ public class TrafficStreamManager : MonoBehaviour
     public IReadOnlyList<TrafficVehicle> Vehicles => vehicles;
 
     public TrafficConfig Config => config;
+    // Off: no new cars spawn (at a stage start, until the player leaves the start station).
+    public bool SpawningEnabled { get; set; } = true;
 
     // Stage setup: a runtime config copy, set before traffic spawns.
     public void UseConfig(TrafficConfig stageConfig)
@@ -83,7 +85,7 @@ public class TrafficStreamManager : MonoBehaviour
         }
 
         int spawnMax = maxChunk + Mathf.Max(0, config.spawnAheadChunks);
-        for (int chunkIndex = minChunk; chunkIndex <= spawnMax; chunkIndex++)
+        for (int chunkIndex = minChunk; chunkIndex <= spawnMax && SpawningEnabled; chunkIndex++)
         {
             if (spawnedChunks.Contains(chunkIndex))
             {

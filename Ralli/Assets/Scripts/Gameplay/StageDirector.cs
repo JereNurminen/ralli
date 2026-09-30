@@ -6,8 +6,10 @@ using UnityEngine.SceneManagement;
 // Runs one stage of a run: a road from a gas station to the next (see
 // docs/plans/2026-09-30-stage-stations-design.md). Before anything else starts it applies the
 // stage's settings (runtime config copies), places the two stations and parks the car at the
-// start one, engine off. Driving onto the finish lot stops the car, lets the police blast past and
-// ends the stage; being caught ends the run. Either way a placeholder card follows, and a key
+// start one, engine off. Nothing moves until the throttle starts the engine; traffic spawning and
+// the police countdown (the start delay, or the previous stage's lead) wait until the car leaves
+// the start lot. Driving onto the finish lot stops the car, lets the police blast past and ends
+// the stage; being caught ends the run. Either way a placeholder card follows, and a key
 // press reloads the scene as the next stage (or a new run).
 [DefaultExecutionOrder(-100)]
 public class StageDirector : MonoBehaviour
@@ -31,7 +33,11 @@ public class StageDirector : MonoBehaviour
     [Tooltip("Time to wait after being caught before the card (s).")]
     [SerializeField] private float caughtCardDelay = 2f;
 
+    [Tooltip("How far off the start lot (m) counts as having left it.")]
+    [SerializeField] private float leftLotDistance = 2f;
+
     private GasStation finishStation;
+    private bool leftStartLot;
     private Outcome outcome;
     private float leadSeconds;
     private float fade;
@@ -47,6 +53,8 @@ public class StageDirector : MonoBehaviour
 
         RoadGenerationConfig roadConfig = Instantiate(road.Config);
         roadConfig.seed = RunState.StageSeed;
+        // Narrower roads get narrower shoulders too.
+        roadConfig.shoulderWidth *= stage.roadWidth / Mathf.Max(0.1f, roadConfig.roadWidth);
         roadConfig.roadWidth = stage.roadWidth;
         float startS = progression.runInLength;
         float finishS = startS + stage.stageLength;
@@ -62,6 +70,7 @@ public class StageDirector : MonoBehaviour
             TrafficConfig trafficConfig = Instantiate(traffic.Config);
             trafficConfig.vehiclesPerKilometer = stage.trafficPerKilometer;
             traffic.UseConfig(trafficConfig);
+            traffic.SpawningEnabled = false;
         }
 
         if (police != null && police.Config != null)
@@ -74,6 +83,7 @@ public class StageDirector : MonoBehaviour
             }
 
             police.UseConfig(policeConfig);
+            police.HoldStart = true;
             police.CaughtPlayer += OnCaught;
         }
     }
@@ -192,6 +202,20 @@ public class StageDirector : MonoBehaviour
 
     private void Update()
     {
+        if (!leftStartLot && road.GetStationLotOutside(car.transform.position.x, car.transform.position.z, out _) > leftLotDistance)
+        {
+            leftStartLot = true;
+            if (traffic != null)
+            {
+                traffic.SpawningEnabled = true;
+            }
+
+            if (police != null)
+            {
+                police.HoldStart = false;
+            }
+        }
+
         if (!cardShown || !ContinuePressed())
         {
             return;

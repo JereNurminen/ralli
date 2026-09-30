@@ -50,7 +50,8 @@ public class RoadStreamGenerator : MonoBehaviour
     }
 
     // A gas station lot beside the road (right side). Origin is on the lot's road-side edge at
-    // road surface height, centered along the lot; the lot extends along +right.
+    // road surface height, centered along the lot; the lot extends along +right. It is a funnel:
+    // mouthLength long at the road, tapering to length at the back.
     public struct StationLot
     {
         public float s;
@@ -59,6 +60,13 @@ public class RoadStreamGenerator : MonoBehaviour
         public Vector3 right;
         public float depth;
         public float length;
+        public float mouthLength;
+
+        // Half its length along the road, at the given distance from the road-side edge.
+        public float GetHalfLengthAt(float across)
+        {
+            return Mathf.Lerp(mouthLength, length, Mathf.Clamp01(across / Mathf.Max(0.01f, depth))) * 0.5f;
+        }
     }
 
     [Header("References")]
@@ -296,7 +304,8 @@ public class RoadStreamGenerator : MonoBehaviour
                 forward = flatForward,
                 right = flatRight,
                 depth = config.stationLotSize.x,
-                length = config.stationLotSize.y
+                length = config.stationLotSize.y,
+                mouthLength = config.stationLotSize.y * 2f
             });
         }
 
@@ -313,10 +322,40 @@ public class RoadStreamGenerator : MonoBehaviour
             return false;
         }
 
-        float half = config.stationStretchLength * 0.5f;
-        minS = stationCentersS[0] + half;
-        maxS = stationCentersS[stationCentersS.Length - 1] - half;
+        minS = stationCentersS[0] + config.stationExitLength;
+        maxS = stationCentersS[stationCentersS.Length - 1] - config.stationApproachLength;
         return true;
+    }
+
+    // Distance from (x, z) to the nearest station lot (0 on it; the lot reaches over the road to
+    // its centerline), and which lot. float.MaxValue and -1 when there are no lots.
+    public float GetStationLotOutside(float x, float z, out int lotIndex)
+    {
+        lotIndex = -1;
+        float best = float.MaxValue;
+        if (config == null)
+        {
+            return best;
+        }
+
+        float toCenterline = config.roadWidth * 0.5f + Mathf.Max(0f, config.shoulderWidth);
+        IReadOnlyList<StationLot> lots = GetStationLots();
+        for (int i = 0; i < lots.Count; i++)
+        {
+            StationLot lot = lots[i];
+            Vector3 offset = new Vector3(x - lot.origin.x, 0f, z - lot.origin.z);
+            float across = Vector3.Dot(offset, lot.right);
+            float outsideAcross = Mathf.Max(0f, across - lot.depth) + Mathf.Max(0f, -across - toCenterline);
+            float outsideAlong = Mathf.Max(0f, Mathf.Abs(Vector3.Dot(offset, lot.forward)) - lot.GetHalfLengthAt(across));
+            float outside = Mathf.Sqrt(outsideAcross * outsideAcross + outsideAlong * outsideAlong);
+            if (outside < best)
+            {
+                best = outside;
+                lotIndex = i;
+            }
+        }
+
+        return best;
     }
 
     // Sample at a dead end of the road: the first one, or the last once the road has ended.
@@ -359,8 +398,8 @@ public class RoadStreamGenerator : MonoBehaviour
             return Vector3.forward;
         }
 
-        float startYaw = Mathf.Atan2(samples[0].tangent.x, samples[0].tangent.z) * Mathf.Rad2Deg;
-        return Quaternion.Euler(0f, startYaw + config.targetBearing, 0f) * Vector3.forward;
+        // Headings are measured from north (+Z), which stage roads head after their run-in bend.
+        return Quaternion.Euler(0f, config.targetBearing, 0f) * Vector3.forward;
     }
 
     // Nearest road sample within maxDistance (horizontal). lipHeight is the height of the ditch
@@ -1225,14 +1264,16 @@ public class RoadStreamGenerator : MonoBehaviour
 
         activeSeed = config.seed != 0 ? config.seed : UnityEngine.Random.Range(100000, 1000000);
 
+        // Every stage heads north (+Z) at its start station, whatever the object's rotation: the
+        // road starts aimed so the run-in bend brings it round to north.
+        Quaternion startHeading = Quaternion.Euler(0f, -GetRunInTurn(), 0f);
         RoadSample first = new RoadSample
         {
             s = 0f,
-            // Every stage starts heading north (+Z), whatever the object's rotation.
             position = transform.position,
-            tangent = Vector3.forward,
+            tangent = startHeading * Vector3.forward,
             up = Vector3.up,
-            right = Vector3.right,
+            right = startHeading * Vector3.right,
             bankAngle = 0f,
             bankTargetAngle = 0f,
             turnRateDegPerMeter = 0f,
@@ -1243,6 +1284,19 @@ public class RoadStreamGenerator : MonoBehaviour
         AddSampleToBucket(0);
         heightField = new TerrainHeightField(config, activeSeed, first.position);
         ResetPieceState();
+        cumulativeYawDeg = -GetRunInTurn();
+    }
+
+    // Total bend (degrees, signed by seed) of the run-in from the road start to the start
+    // station; 0 without stations.
+    private float GetRunInTurn()
+    {
+        if (stationCentersS.Length == 0)
+        {
+            return 0f;
+        }
+
+        return (Hash01(0, 300) < 0.5f ? -1f : 1f) * config.runInTurnDegrees;
     }
 
     private float GetTurnRateDegPerMeter(float s)
@@ -1342,6 +1396,18 @@ public class RoadStreamGenerator : MonoBehaviour
             return;
         }
 
+        // Stage roads open with the run-in: one bend from the road start to the start station.
+        if (pieceIndex == 0 && stationCentersS.Length > 0 && nextStationStart < float.PositiveInfinity)
+        {
+            currentPieceType = PieceType.Curve;
+            currentDesignedPiece = null;
+            currentDesignedPieceMirrored = false;
+            pieceEndS = nextStationStart;
+            pieceTurnRateDegPerMeter = GetRunInTurn() / Mathf.Max(1f, nextStationStart);
+            cumulativeYawDeg += GetRunInTurn();
+            return;
+        }
+
         bool forceStartStraight = pieceIndex == 0;
 
         // Check if we should place a designed piece (only where it ends before the next station)
@@ -1434,13 +1500,14 @@ public class RoadStreamGenerator : MonoBehaviour
     // Start of the first station stretch that ends after s (infinity when none), and its end.
     private float GetNextStationStretch(float s, out float stretchEnd)
     {
-        float half = Mathf.Max(0f, config.stationStretchLength) * 0.5f;
-        foreach (float center in stationCentersS)
+        for (int i = 0; i < stationCentersS.Length; i++)
         {
-            if (center + half > s)
+            float center = stationCentersS[i];
+            float approach = i == 0 ? config.startStationApproachLength : config.stationApproachLength;
+            if (center + config.stationExitLength > s)
             {
-                stretchEnd = center + half;
-                return center - half;
+                stretchEnd = center + config.stationExitLength;
+                return Mathf.Max(0f, center - approach);
             }
         }
 
@@ -1448,11 +1515,11 @@ public class RoadStreamGenerator : MonoBehaviour
         return float.PositiveInfinity;
     }
 
-    // 1 along a station lot, blending back to 0 (normal shoulder and ditch) past its ends.
+    // 1 along a station lot's mouth, blending back to 0 (normal shoulder and ditch) past its ends.
     private float GetRightApron(float s)
     {
         float apron = 0f;
-        float half = config.stationLotSize.y * 0.5f;
+        float half = config.stationLotSize.y;
         float blend = Mathf.Max(0.01f, config.stationApronBlend);
         foreach (float center in stationCentersS)
         {
@@ -1706,8 +1773,9 @@ public class RoadStreamGenerator : MonoBehaviour
         ListPool<int>.Release(toRemove);
     }
 
-    // Paved yard for each station lot, in the road material, from the asphalt edge (covering the
-    // flattened shoulder and ditch) to the back of the lot. Sits a hair above road level.
+    // Paved yard for each station lot, in the road material: a funnel from a wide mouth at the
+    // asphalt edge (covering the flattened shoulder and ditch) to the back of the lot. Sits a hair
+    // above road level.
     private void BuildStationLotSurfaces()
     {
         foreach (GameObject surface in stationLotSurfaces)
@@ -1721,14 +1789,15 @@ public class RoadStreamGenerator : MonoBehaviour
         for (int i = 0; i < lots.Count; i++)
         {
             StationLot lot = lots[i];
-            float half = lot.length * 0.5f;
+            float mouth = lot.GetHalfLengthAt(0f);
+            float back = lot.GetHalfLengthAt(lot.depth);
             Vector3 lift = Vector3.up * 0.02f;
             Vector3[] vertices =
             {
-                lot.origin - lot.right * shoulder - lot.forward * half + lift,
-                lot.origin + lot.right * lot.depth - lot.forward * half + lift,
-                lot.origin - lot.right * shoulder + lot.forward * half + lift,
-                lot.origin + lot.right * lot.depth + lot.forward * half + lift
+                lot.origin - lot.right * shoulder - lot.forward * mouth + lift,
+                lot.origin + lot.right * lot.depth - lot.forward * back + lift,
+                lot.origin - lot.right * shoulder + lot.forward * mouth + lift,
+                lot.origin + lot.right * lot.depth + lot.forward * back + lift
             };
 
             // Road-space UVs far off the centerline, so the shader draws no lane markings.
@@ -1741,10 +1810,10 @@ public class RoadStreamGenerator : MonoBehaviour
                 colors = new[] { Color.red, Color.red, Color.red, Color.red },
                 uv = new[]
                 {
-                    new Vector2(noMarkings - shoulder, -half),
-                    new Vector2(noMarkings + lot.depth, -half),
-                    new Vector2(noMarkings - shoulder, half),
-                    new Vector2(noMarkings + lot.depth, half)
+                    new Vector2(noMarkings - shoulder, -mouth),
+                    new Vector2(noMarkings + lot.depth, -back),
+                    new Vector2(noMarkings - shoulder, mouth),
+                    new Vector2(noMarkings + lot.depth, back)
                 },
                 triangles = new[] { 0, 2, 1, 1, 2, 3 }
             };
