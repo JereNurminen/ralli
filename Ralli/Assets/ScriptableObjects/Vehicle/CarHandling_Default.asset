@@ -16,199 +16,38 @@ MonoBehaviour:
   steerResponse: 19.7
   steerFadeSpeedKph: 162
   highSpeedSteerFactor: 0.5
-  wheelRadius: 0.35
-  suspensionRestLength: 0.5
-  springStrength: 24000
-  damperStrength: 5200
-  maxSuspensionVelocity: 5
-  maxSuspensionLoadFactor: 1.8
-  antiRollStiffness: 6200
-  tireFriction: 1
-  frontLateralGrip: 20
-  rearLateralGrip: 6
-  rearGripWhileHandbrake: 0.1
-  rearGripWhenSingleRearWheelGrounded: 0.4
-  rearTireForceCapWhenSingleRearWheelGrounded: 0.4
-  rearDriveBias: 0.99
-  maxDriveForce: 5000
-  maxBrakeForce: 25000
-  handbrakeForce: 20000
-  handbrakeRearBias: 0.879
-  rearDriveWhenSingleRearWheelGrounded: 0.35
-  rearSpringForceWhenSingleRearWheelGrounded: 0.6
-  fakeGearTopSpeedKph: 198
-  baseDriveForceBySpeedKph:
-    serializedVersion: 2
-    m_Curve:
-    - serializedVersion: 3
-      time: 0
-      value: 1
-      inSlope: 0
-      outSlope: 0
-      tangentMode: 0
-      weightedMode: 0
-      inWeight: 0
-      outWeight: 0
-    - serializedVersion: 3
-      time: 81
-      value: 0.970871
-      inSlope: -0.0034699882
-      outSlope: -0.0034699882
-      tangentMode: 0
-      weightedMode: 0
-      inWeight: 0.5694444
-      outWeight: 0
-    - serializedVersion: 3
-      time: 126
-      value: 0.82
-      inSlope: 0
-      outSlope: 0
-      tangentMode: 0
-      weightedMode: 0
-      inWeight: 0
-      outWeight: 0
-    - serializedVersion: 3
-      time: 198
-      value: 0.58
-      inSlope: 0
-      outSlope: 0
-      tangentMode: 0
-      weightedMode: 0
-      inWeight: 0
-      outWeight: 0
-    - serializedVersion: 3
-      time: 270
-      value: 0.35
-      inSlope: 0
-      outSlope: 0
-      tangentMode: 0
-      weightedMode: 0
-      inWeight: 0
-      outWeight: 0
-    m_PreInfinity: 2
-    m_PostInfinity: 2
-    m_RotationOrder: 4
-  fakeGearCount: 6
-  fakeGearThresholds01: []
-  shiftTorqueDip: 0.75
-  shiftPauseDuration: 0.0919
-  engineBrakingStrength: 0.56
-  rollingResistance: 150
-  aerodynamicDrag: 1.15
-  lateralSlipCurve:
-    serializedVersion: 2
-    m_Curve:
-    - serializedVersion: 3
-      time: 0
-      value: 0
-      inSlope: 0
-      outSlope: 0
-      tangentMode: 0
-      weightedMode: 0
-      inWeight: 0
-      outWeight: 0
-    - serializedVersion: 3
-      time: 0.5
-      value: 0.85
-      inSlope: 0
-      outSlope: 0
-      tangentMode: 0
-      weightedMode: 0
-      inWeight: 0
-      outWeight: 0
-    - serializedVersion: 3
-      time: 1
-      value: 1
-      inSlope: 0
-      outSlope: 0
-      tangentMode: 0
-      weightedMode: 0
-      inWeight: 0
-      outWeight: 0
-    - serializedVersion: 3
-      time: 2
-      value: 0.78
-      inSlope: 0
-      outSlope: 0
-      tangentMode: 0
-      weightedMode: 0
-      inWeight: 0
-      outWeight: 0
-    - serializedVersion: 3
-      time: 4
-      value: 0.55
-      inSlope: 0
-      outSlope: 0
-      tangentMode: 0
-      weightedMode: 0
-      inWeight: 0
-      outWeight: 0
-    m_PreInfinity: 2
-    m_PostInfinity: 2
-    m_RotationOrder: 4
-  lateralSlipScale: 1
-  longitudinalSlipCurve:
-    serializedVersion: 2
-    m_Curve:
-    - serializedVersion: 3
-      time: 0
-      value: 0
-      inSlope: 0
-      outSlope: 0
-      tangentMode: 0
-      weightedMode: 0
-      inWeight: 0
-      outWeight: 0
-    - serializedVersion: 3
-      time: 0.15
-      value: 1
-      inSlope: 0
-      outSlope: 0
-      tangentMode: 0
-      weightedMode: 0
-      inWeight: 0
-      outWeight: 0
-    - serializedVersion: 3
-      time: 0.35
-      value: 0.82
-      inSlope: 0
-      outSlope: 0
-      tangentMode: 0
-      weightedMode: 0
-      inWeight: 0
-      outWeight: 0
-    - serializedVersion: 3
-      time: 1
-      value: 0.55
-      inSlope: 0
-      outSlope: 0
-      tangentMode: 0
-      weightedMode: 0
-      inWeight: 0
-      outWeight: 0
-    - serializedVersion: 3
-      time: 2
-      value: 0.4
-      inSlope: 0
-      outSlope: 0
-      tangentMode: 0
-      weightedMode: 0
-      inWeight: 0
-      outWeight: 0
-    m_PreInfinity: 2
-    m_PostInfinity: 2
-    m_RotationOrder: 4
-  longitudinalSlipScale: 1
-  boostForceMultiplier: 5
-  boostRampUpSpeed: 5
-  boostRampDownSpeed: 2
+  steeringThreshold: 0.3
+  baseAcceleration: 5.5
+  maxSpeedKph: 210
+  overdrivePowerMultiplier: 1.6
+  overdriveRampUpSpeed: 5
+  overdriveRampDownSpeed: 2
+  rollingDeceleration: 0.5
+  brakeDeceleration: 10
+  reverseAcceleration: 3
+  reverseMaxSpeedKph: 25
+  uphillGravityScale: 0.3
+  exitBoostMinHold: 0.4
+  exitBoostKickKph: 15
+  exitBoostDuration: 1
+  exitBoostAcceleration: 6
+  exitBoostGrip: 0.8
+  heatRiseRate: 0.125
+  heatFallRate: 0.1
+  heatTaperStart: 0.8
+  powerAtMaxHeat: 0.6
+  gripStiffness: 12
+  frontGripG: 1.15
+  rearGripG: 1.3
+  frontGripUnderThrottle: 0.8
+  rearGripInOverdrive: 0.45
+  handbrakeRearGrip: 0.3
+  frontGripResponseTime: 0.4
+  rearGripResponseTime: 0.3
+  rideHeight: 1
+  groundProbeExtra: 0.6
+  supportStiffness: 160
+  supportDamping: 15
+  alignStiffness: 40
+  alignDamping: 8
   centerOfMassYOffset: -0.6
-  yawDamping: 2.2
-  rollDamping: 1.4
-  straighteningSteerThreshold: 0.03
-  straighteningActivationDelay: 0.12
-  straighteningLateralDamping: 3.5
-  straighteningYawDamping: 4.5
-  steerWhenFrontAirborne: 0.15
-  rearDriveWhenFrontAirborne: 0.5
-  rearGripWhenFrontAirborne: 0.7
