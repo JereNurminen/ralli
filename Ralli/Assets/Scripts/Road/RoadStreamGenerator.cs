@@ -266,8 +266,35 @@ public class RoadStreamGenerator : MonoBehaviour
     // outer lip on that side of the road, following the road's bank.
     public bool TryGetRoadProximity(float x, float z, float maxDistance, out float distance, out float lipHeight)
     {
-        distance = float.MaxValue;
         lipHeight = 0f;
+        if (!TryFindNearestSample(x, z, maxDistance, out int sampleIndex, out distance))
+        {
+            return false;
+        }
+
+        lipHeight = GetLipHeight(sampleIndex, x, z);
+        return true;
+    }
+
+    // Point on the road centerline `distance` meters ahead of the nearest road point, in the
+    // direction the heading points along the road. False when no road is within maxRoadDistance.
+    public bool TryGetRoadPointAhead(Vector3 position, Vector3 heading, float distance, float maxRoadDistance, out Vector3 point)
+    {
+        point = position;
+        if (!TryFindNearestSample(position.x, position.z, maxRoadDistance, out int sampleIndex, out _))
+        {
+            return false;
+        }
+
+        RoadSample nearest = samples[sampleIndex];
+        float direction = Vector3.Dot(nearest.tangent, heading) >= 0f ? 1f : -1f;
+        return TryGetRoadFrameAtS(Mathf.Max(0f, nearest.s + direction * distance), out point, out _, out _, out _, out _);
+    }
+
+    private bool TryFindNearestSample(float x, float z, float maxDistance, out int sampleIndex, out float distance)
+    {
+        sampleIndex = -1;
+        distance = float.MaxValue;
         if (config == null || samples.Count == 0)
         {
             return false;
@@ -277,7 +304,6 @@ public class RoadStreamGenerator : MonoBehaviour
         int cx = Mathf.FloorToInt(x / SampleBucketSize);
         int cz = Mathf.FloorToInt(z / SampleBucketSize);
         float bestSq = maxDistance * maxDistance;
-        int bestIndex = -1;
 
         for (int dx = -cellRadius; dx <= cellRadius; dx++)
         {
@@ -295,19 +321,18 @@ public class RoadStreamGenerator : MonoBehaviour
                     if (sq < bestSq)
                     {
                         bestSq = sq;
-                        bestIndex = bucket[i];
+                        sampleIndex = bucket[i];
                     }
                 }
             }
         }
 
-        if (bestIndex < 0)
+        if (sampleIndex < 0)
         {
             return false;
         }
 
         distance = Mathf.Sqrt(bestSq);
-        lipHeight = GetLipHeight(bestIndex, x, z);
         return true;
     }
 
