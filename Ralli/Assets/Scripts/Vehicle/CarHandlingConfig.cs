@@ -106,9 +106,13 @@ public class CarHandlingConfig : ScriptableObject
     public float spinCatchRange = 20f;
     [Tooltip("How hard rotation that would deepen the slide is damped once past the limit (1/s).")]
     public float spinYawDamping = 6f;
-    [Tooltip("Forward push that keeps speed through a slide (m/s², along the direction of travel). 0 = off.")]
+    [Tooltip("How much engine power eats into rear sideways grip, like wheelspin (0 = none, 1 = full friction circle). Makes Overdrive kick the tail out even at low speed.")]
+    [Range(0f, 1f)] public float powerOversteer = 0.8f;
+    [Tooltip("Share of engine power that still drives the car forward in a full slide (the rest is wheelspin).")]
+    [Range(0f, 1f)] public float slidePowerFactor = 0.5f;
+    [Tooltip("Push that tops speed back up to where it was when the slide began (m/s², along the direction of travel). Never adds speed beyond that. 0 = off.")]
     public float driftMomentum = 4f;
-    [Tooltip("Drift angle (degrees) where the momentum push starts, and where it is full.")]
+    [Tooltip("Drift angle (degrees) where sliding starts to count (wheelspin, momentum), and where it is full.")]
     public Vector2 driftMomentumAngles = new Vector2(8f, 20f);
 
     [Header("Body")]
